@@ -3,8 +3,9 @@ from gertrude import (
     _generate_id, 
     _save_to_heap, 
     _delete_from_heap, 
-    HEAP_ID_ALPHABET, 
     HEAP_ID_LENGTH)
+
+import msgpack
 
 
 def test_id() :
@@ -18,7 +19,8 @@ def test_save_to_heap(tmp_path) :
 
     created_file = db_path / heap_id[0:2] / heap_id[2:4] / heap_id[4:]
     assert created_file.exists()
-    assert created_file.read_text() == '{"key": "value"}'
+    data = msgpack.unpackb(created_file.read_bytes())
+    assert data == {"key": "value"}
 
 def test_collision(tmp_path) :
     db_path = tmp_path / "db"

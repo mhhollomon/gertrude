@@ -1,6 +1,7 @@
-from typing import Any
+from typing import Any, NamedTuple, Iterable
 from nanoid import generate
 from pathlib import Path
+import msgpack
 import json
 import regex as re
 
@@ -12,10 +13,12 @@ HEAP_ID_LENGTH = 20
 
 NAME_REGEX = re.compile(r'^[a-zA-Z0-9_-]+$')
 
+FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", type), ("options", dict[str, Any])])
+
 def _generate_id():
     return generate(alphabet=HEAP_ID_ALPHABET, size=HEAP_ID_LENGTH)
 
-def _save_to_heap(heap : Path, value : Any) -> str :
+def _save_to_heap(heap : Path, value : dict) -> str :
     """Saves to the heap pointed to by the path.
     Checks for path collisions.
     Returns the hash_id.
@@ -27,7 +30,9 @@ def _save_to_heap(heap : Path, value : Any) -> str :
             break
 
     proposed_path.parent.mkdir(parents=True, exist_ok=True)
-    proposed_path.write_text(json.dumps(value))
+
+    with proposed_path.open("wb") as f:
+        msgpack.dump(value, f)
     
     return hash_id
 
@@ -40,14 +45,20 @@ def _delete_from_heap(heap : Path, hash_id : str) -> Any :
     if not heap_path.exists():
         return None
 
-    retval = json.loads(heap_path.read_text())    
+    retval = msgpack.unpackb(heap_path.read_bytes())
+    
     heap_path.unlink()
 
     return retval
 
+
+#################################################################
+# Database class
+#################################################################
 class Database :
     def __init__(self, db_path : Path, comment : str = '') :
         self.db_path = db_path
+        self.table_defs = {}
 
         need_setup = True
         if not self.db_path.exists() :
@@ -61,6 +72,7 @@ class Database :
                 config = json.loads((self.db_path / "gertrude.conf").read_text())
                 assert config["schema_version"] == CURRENT_SCHEMA_VERSION    
                 assert config["gertrude_version"] == GERTRUDE_VERSION
+                self._load_table_defs()
                 need_setup = False
 
         if need_setup :
@@ -80,3 +92,38 @@ class Database :
     def _clear(self) :
         self.db_path.rmdir()
         self.db_path.mkdir()
+
+    def _load_table_defs(self) :
+        for table_path in self.db_path.glob("tables/*") :
+            self.table_defs[table_path.name] = json.loads((table_path / "config").read_text())
+
+    class TableProxy :
+        def __init__(self, parent : "Database", db_path : Path, table_name : str) :
+            self.db_path = db_path
+            self.table_name = table_name
+            self.parent = parent
+
+    #################################################################
+    # Public API
+    #################################################################
+    def create_table(self, name : str, spec : Iterable[FieldSpec]) -> Database.TableProxy :
+        # Name okay?
+        if not NAME_REGEX.match(name) :
+            raise ValueError(f"Invalid table name {name}")
+        # is it unique?
+        if name in self.table_defs :
+            raise ValueError(f"Table {name} already exists.")
+        # Does the directory exist?
+        table_path = self.db_path / "tables" / name
+        if table_path.exists() :
+            raise ValueError(f"Table {name} directory already exists.")
+        
+        # good to go
+        table_path.mkdir(exist_ok=True)
+        (table_path / "config").write_text(json.dumps(spec))
+
+        # this isn't correct.
+        # TODO : parse the spec to create the NamedTuple type, etc
+        self.table_defs[name] = spec
+
+        return Database.TableProxy(self, table_path, name)

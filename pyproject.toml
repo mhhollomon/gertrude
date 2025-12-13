@@ -11,4 +11,5 @@ dynamic = ["version", "description"]
 dependencies = [
     "nanoid",
     "regex",
+    "msgpack",
 ]
