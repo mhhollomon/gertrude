@@ -16,39 +16,6 @@ _OPTIONS = {
 }
 
 
-def _save_to_heap(heap : Path, value : dict) -> str :
-    """Saves to the heap pointed to by the path.
-    Checks for path collisions.
-    Returns the hash_id.
-    """
-    while True :
-        hash_id = _generate_id()
-        proposed_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
-        if not proposed_path.exists():
-            break
-
-    proposed_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with proposed_path.open("wb") as f:
-        msgpack.dump(value, f)
-    
-    return hash_id
-
-def _delete_from_heap(heap : Path, hash_id : str) -> Any :
-    """ Note that the hash_id is not validated nor are any 
-    empty directories removed.
-    """
-    heap_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
-
-    if not heap_path.exists():
-        return None
-
-    retval = msgpack.unpackb(heap_path.read_bytes())
-    
-    heap_path.unlink()
-
-    return retval
-
 
 #################################################################
 # Database class

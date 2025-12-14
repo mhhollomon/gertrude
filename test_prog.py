@@ -10,7 +10,10 @@ if db_path.exists() :
 
 db = gertrude.Database(Path("./output"))
 
-db.create_table("test", [
+table = db.create_table("test", [
     gertrude.FieldSpec("name", 'str', {'pk' :True}),
     gertrude.FieldSpec("age", 'int', {}),
 ])
+
+table.insert({"name" : "bob", "age" : 12})
+table.insert({"name" : "alice", "age" : 22})

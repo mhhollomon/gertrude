@@ -4,17 +4,13 @@ from typing import Dict, Iterable, NamedTuple, Any, cast
 import json
 import msgpack
 
-from gertrude.globals import NAME_REGEX
+from gertrude.globals import NAME_REGEX, _save_to_heap, TYPES
+
+from .index import Index
 
 
 FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
 
-_TYPES = {
-    "str" : str,
-    "int" : int,
-    "float" : float,
-    "bool" : bool,
-}
 
 
 class Table :
@@ -28,7 +24,7 @@ class Table :
         assert isinstance(parent, Database)
 
         self.db_path = db_path
-        self.index : Dict[str, Table._index] = {}
+        self.index : Dict[str, Index] = {}
         self.spec = spec
         self.name = table_name
         self.parent = cast(Database, parent)
@@ -45,9 +41,9 @@ class Table :
     def _generate_tuple_type(self) :
         tuple_types = []
         for s in self.spec :
-            if s.type not in _TYPES :
+            if s.type not in TYPES :
                 raise ValueError(f"Invalid type {s.type} for field {s.name}")
-            real_type = _TYPES[s.type]
+            real_type = TYPES[s.type]
             tuple_types.append((s.name, real_type))
 
         return NamedTuple(self.name, tuple_types)
@@ -85,7 +81,7 @@ class Table :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        for entry in (self.db_path / "data").iterdir() :
+        for entry in (self.db_path / "data").rglob('*') :
             if entry.is_file() :
                 heap_id = entry.name
                 heap_id = entry.parent.name + heap_id
@@ -95,40 +91,6 @@ class Table :
                 record = self.record(*data)
                 yield (heap_id,record)
 
-    #################################################################
-    # _INDEX CLASS
-    #################################################################
-    class _index :
-        def __init__(self, index_name : str, path : Path, column : str, coltype : str) :
-            self.index_name = index_name
-            self.column = column
-            self.coltype = coltype
-            self.path = path
-            self.real_type = _TYPES[coltype]
-            self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
-
-        def _create(self, iterator) :
-            if self.path.exists() :
-                raise ValueError(f"Index {self.index_name} directory already exists.")
-
-            self.path.mkdir()
-            root = self.path / "root"
-            # we'll work about splitting the node later
-            records = []
-            for record in iterator() :
-                print(record)
-                (heap_id, data) = record
-                key = getattr(data, self.column)
-                # TODO : Need the actual heap_id - This isn't correct
-                records.append((key, str(data)))
-
-            records.sort(key=lambda x : getattr(x, self.column))
-            for key, value in records :
-                data = (self.real_type(key), value)
-
-            data = (1, tuple(records)) # 1 = leaf
-            with open(root, "wb") as f :
-                msgpack.dump(data, f)
 
     #################################################################
     # Public API
@@ -144,12 +106,32 @@ class Table :
         if len(col) != 1 :
             raise ValueError(f"Invalid column name {column} for table {self.name}")
 
-        new_index = Table._index(index_name, self.db_path / "index" / index_name, column, col[0].type)
+        new_index = Index(index_name, self.db_path / "index" / index_name, column, col[0].type)
         self.index[index_name] = new_index
 
         new_index._create(self._data_iter)
 
 
+    def get_spec(self) :
+        return self.spec
+    
+    def insert(self, record : Any) :
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+        
+        if not isinstance(record, self.record) : 
+            if isinstance(record, dict) :
+                record_object = self.record(**record)
+            else :
+                record_object = self.record(*record)
+        print(f"--- record_object = {record_object}")
+
+        heap_id = _save_to_heap(self.db_path / "data", record_object)
+
+        for index in self.index.values() :
+            index._insert(record_object, heap_id)
+
+        return heap_id
 
     def scan(self) :
         for record in self._data_iter() :
