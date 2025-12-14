@@ -5,7 +5,8 @@ import shutil
 import gertrude
 
 db_path = Path("./output")
-shutil.rmtree(db_path)
+if db_path.exists() :
+    shutil.rmtree(db_path)
 
 db = gertrude.Database(Path("./output"))
 

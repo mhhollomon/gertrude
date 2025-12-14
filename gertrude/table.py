@@ -81,6 +81,20 @@ class Table :
 
         self.record = self._generate_tuple_type()
 
+    def _data_iter(self) :
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+
+        for entry in (self.db_path / "data").iterdir() :
+            if entry.is_file() :
+                heap_id = entry.name
+                heap_id = entry.parent.name + heap_id
+                heap_id = entry.parent.parent.name + heap_id
+
+                data = msgpack.unpackb(entry.read_bytes())
+                record = self.record(*data)
+                yield (heap_id,record)
+
     #################################################################
     # _INDEX CLASS
     #################################################################
@@ -93,13 +107,26 @@ class Table :
             self.real_type = _TYPES[coltype]
             self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
 
-        def _create(self) :
+        def _create(self, iterator) :
             if self.path.exists() :
                 raise ValueError(f"Index {self.index_name} directory already exists.")
 
             self.path.mkdir()
             root = self.path / "root"
-            data = (1, ()) # 1 = leaf
+            # we'll work about splitting the node later
+            records = []
+            for record in iterator() :
+                print(record)
+                (heap_id, data) = record
+                key = getattr(data, self.column)
+                # TODO : Need the actual heap_id - This isn't correct
+                records.append((key, str(data)))
+
+            records.sort(key=lambda x : getattr(x, self.column))
+            for key, value in records :
+                data = (self.real_type(key), value)
+
+            data = (1, tuple(records)) # 1 = leaf
             with open(root, "wb") as f :
                 msgpack.dump(data, f)
 
@@ -110,6 +137,9 @@ class Table :
         if not NAME_REGEX.match(index_name) :
             raise ValueError(f"Invalid index name {index_name} for table {self.name}")
 
+        if index_name in self.index :
+            raise ValueError(f"Index {index_name} already exists for table {self.name}")
+
         col = [x for x in self.spec if x.name == column]
         if len(col) != 1 :
             raise ValueError(f"Invalid column name {column} for table {self.name}")
@@ -117,4 +147,10 @@ class Table :
         new_index = Table._index(index_name, self.db_path / "index" / index_name, column, col[0].type)
         self.index[index_name] = new_index
 
-        new_index._create()
+        new_index._create(self._data_iter)
+
+
+
+    def scan(self) :
+        for record in self._data_iter() :
+            yield record[1]
