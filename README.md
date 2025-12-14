@@ -57,19 +57,29 @@ A new hash_id is assigned and all indexes are updated.
 
 ## Index subdirectory
 The subdirectory is named after the index itself. A B+ Tree structure is maintained.
-A tree node is represented by a subdirectory.
+A tree node is represented by a file.
 
-If the node is a leaf node, then a file named `leaf` is present and is a JSON
-containing a list of list. The inner lists have two entries. The first is the key
-and the second is the value. The value is a hash_id.
+The root node is called simply `root` - other nodes are assigned a 20 char nanoid
+similar to heap_id.
 
-If the node is an internal node, then a file named `internal` is present and is a
-JSON file containing a list of lists. The inner lists have two entries. The first
-is a key and the second is a subdirectory. All keys in the noted directory will
-be less than the search key.
+An internal node is a tuple :
+- kind indicator (internal)
+- A List of Tuples with :
+    - key
+    - node name
 
-To ease spliting the root node. The index parent directory will be empty except 
-for a directory call `root` which will contain the root of the tree
+A leaf node is a tuple :
+- kind indicator (leaf)
+- A predecessor node name
+- A successor node name
+- A List of Tuples with :
+    - key
+    - heap_id of the record
+
+Fan out will be 1000 (probably).
+
+I may set the root to have infinite fan out so that the tree is never more than
+2 layers deep. Even at 1000, 2 layers give you 500,000 records (with 50% fill)
 
 ## Example layout
 - my-database
@@ -87,12 +97,7 @@ for a directory call `root` which will contain the root of the tree
             - index
                 - my_index
                     - root
-                        - internal
-                        - 01
-                            - leaf
-                        - 02
-                            - internal
-                            - 01
-                                - leaf
+                    - 23JDEF456RE2
+                    - 765SDFPO0912
         - table2
             - ...

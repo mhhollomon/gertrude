@@ -1,9 +1,9 @@
 from unittest.mock import Mock, patch
-from gertrude import (
-    _generate_id, 
+from gertrude.globals import HEAP_ID_LENGTH, _generate_id
+from gertrude.database import (
     _save_to_heap, 
     _delete_from_heap, 
-    HEAP_ID_LENGTH)
+    )
 
 import msgpack
 
@@ -28,7 +28,7 @@ def test_collision(tmp_path) :
 
     retvals = ("M3IJW1290DEV2APF", "M3IJW1290DEV2APF", "9JI7BB6HW6253D12")
     gen_id_mock = Mock(side_effect=retvals)
-    with patch("gertrude._generate_id", gen_id_mock) :
+    with patch("gertrude.database._generate_id", gen_id_mock) :
         first = _save_to_heap(db_path, {"key" : "value"})
         second = _save_to_heap(db_path, {"key" : "value"})
         assert first == "M3IJW1290DEV2APF"

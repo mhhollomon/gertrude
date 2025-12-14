@@ -3,7 +3,7 @@ requires = ["flit_core >=3.11,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "Gertrude"
+name = "gertrude"
 authors = [{name = "Mark Hollomon"}]
 license = "MIT"
 license-files = ["LICENSE"]

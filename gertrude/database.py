@@ -5,18 +5,23 @@ import msgpack
 import json
 import regex as re
 
-GERTRUDE_VERSION = "0.0.1"
-CURRENT_SCHEMA_VERSION = 1
+from .table import Table, FieldSpec
 
-HEAP_ID_ALPHABET = '123456789ABCDEFGHIJKLMNPQRSTUVWXYZ'
-HEAP_ID_LENGTH = 20
+from .globals import (_generate_id, CURRENT_SCHEMA_VERSION, 
+                      GERTRUDE_VERSION, NAME_REGEX)
 
-NAME_REGEX = re.compile(r'^[a-zA-Z0-9_-]+$')
 
-FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", type), ("options", dict[str, Any])])
+_TYPES = {
+    "str" : str,
+    "int" : int,
+    "float" : float,
+    "bool" : bool,
+}
 
-def _generate_id():
-    return generate(alphabet=HEAP_ID_ALPHABET, size=HEAP_ID_LENGTH)
+_OPTIONS = {
+    "pk" : bool,
+}
+
 
 def _save_to_heap(heap : Path, value : dict) -> str :
     """Saves to the heap pointed to by the path.
@@ -95,35 +100,32 @@ class Database :
 
     def _load_table_defs(self) :
         for table_path in self.db_path.glob("tables/*") :
-            self.table_defs[table_path.name] = json.loads((table_path / "config").read_text())
+            assert table_path.is_dir()
+            table = Table(self, table_path, table_path.name, [])
+            table._load_def()
+            self.table_defs[table_path.name] = table
 
-    class TableProxy :
-        def __init__(self, parent : "Database", db_path : Path, table_name : str) :
-            self.db_path = db_path
-            self.table_name = table_name
-            self.parent = parent
 
     #################################################################
     # Public API
     #################################################################
-    def create_table(self, name : str, spec : Iterable[FieldSpec]) -> Database.TableProxy :
+    def create_table(self, name : str, spec : Iterable[FieldSpec]) -> Table :
         # Name okay?
         if not NAME_REGEX.match(name) :
             raise ValueError(f"Invalid table name {name}")
         # is it unique?
         if name in self.table_defs :
             raise ValueError(f"Table {name} already exists.")
+        
         # Does the directory exist?
         table_path = self.db_path / "tables" / name
-        if table_path.exists() :
-            raise ValueError(f"Table {name} directory already exists.")
-        
-        # good to go
-        table_path.mkdir(exist_ok=True)
-        (table_path / "config").write_text(json.dumps(spec))
 
-        # this isn't correct.
-        # TODO : parse the spec to create the NamedTuple type, etc
-        self.table_defs[name] = spec
+        table = Table(self, table_path, name, spec)
+        table._create()
+        self.table_defs[name] = table
 
-        return Database.TableProxy(self, table_path, name)
+        return table
+    
+    def drop_table(self, table_name : str) :
+        table = self.table_defs.pop(table_name)
+        table._drop()
