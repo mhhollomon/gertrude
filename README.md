@@ -1,5 +1,5 @@
 # gertrude
-python database using the file system as storage.
+python database where each row is represented by a file.
 
 I am creating this as an exercise. I would not use it for anything remotely
 important.
@@ -21,8 +21,10 @@ A directory that contains a sub directory for each table.
 
 ## Table level
 ### config
-JSON file with config information for the table. Not sure yet what this will
-contain.
+JSON file with config information for the table. Includes column information
+- name
+- type
+- options
 
 ### data
 Directory that contains the actual data heap. See below.

@@ -11,13 +11,6 @@ from .globals import (_generate_id, CURRENT_SCHEMA_VERSION,
                       GERTRUDE_VERSION, NAME_REGEX)
 
 
-_TYPES = {
-    "str" : str,
-    "int" : int,
-    "float" : float,
-    "bool" : bool,
-}
-
 _OPTIONS = {
     "pk" : bool,
 }
