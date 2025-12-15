@@ -2,10 +2,12 @@
 from argparse import ArgumentParser
 import json
 from pathlib import Path
+from typing import cast
 
 import msgpack
 
 from gertrude.table import FieldSpec
+from gertrude.index import DataList
 
 class Explorer:
     def __init__(self, db_path : Path) :
@@ -55,14 +57,13 @@ class Explorer:
 
         config = json.loads((index / "config").read_text())
         print(f"config = {config}")
-        scanptrs = json.loads((index / "scan").read_text())
-        print(f"scanptrs = {scanptrs}")
 
-        root_path = index / "root"
-        print("Root Node:")
+        root_path = index / "block_list"
+        print("block_list:")
         with open(root_path, "rb") as f :
-            data = msgpack.unpackb(f.read())
-            print(data)
+            data = cast(DataList, msgpack.unpackb(f.read()))
+            for (key, block_id) in data :
+                print(f"  {key} -> {block_id}")
 
 if __name__ == "__main__":
     parser = ArgumentParser()
