@@ -59,11 +59,22 @@ class Explorer:
         print(f"config = {config}")
 
         root_path = index / "block_list"
+        block_list = []
         print("block_list:")
         with open(root_path, "rb") as f :
             data = cast(DataList, msgpack.unpackb(f.read()))
             for (key, block_id) in data :
                 print(f"  {key} -> {block_id}")
+                block_list.append(block_id)
+
+        print("blocks:")
+        for block_id in block_list :
+            block_path = index / block_id
+            print(f"  {block_path}")
+            with open(block_path, "rb") as f :
+                data = cast(DataList, msgpack.unpackb(f.read()))
+                for (key, heap_id) in data :
+                    print(f"    {key} -> {heap_id}")
 
 if __name__ == "__main__":
     parser = ArgumentParser()

@@ -25,7 +25,7 @@ def _reserve_file_id(path : Path) -> str :
 def _read_node(path : Path) -> DataList:
     with open(path, "rb") as f :
         return cast(DataList, msgpack.load(f))
-    
+
 def _write_node(path : Path, node : DataList) :
     with open(path, "wb") as f :
         msgpack.dump(node, f)
@@ -65,30 +65,34 @@ class Index :
             (heap_id, data) = record
             key = getattr(data, self.column)
             records.append((key, heap_id))
-        
-        if len(records) == 0 :
-            block_list = []
-        else :
-            records.sort(key=lambda x : getattr(x, self.column))
-            _write_node(self.path / first_block_id, records)
-            block_list = [(records[0][0], first_block_id)]
+
+        records.sort(key=lambda x : getattr(x, self.column))
+        _write_node(self.path / first_block_id, records)
+
+        block_list = [(None, first_block_id)]
 
         _write_node(block_list_path, block_list)
 
-    
+
     def _insert(self, obj : Any, heap_id : str) :
         block_list = _read_node(self.path / "block_list")
 
         key = getattr(obj, self.column)
 
-        i = bisect_left(block_list, key)
-        if i == len(block_list) :
-            pass # need to add a new block or something - not sure
+        i = bisect_left(block_list, key, lo=1)
+        if i == 1 :
+            if i == len(block_list) or block_list[i][0] < key :
+                leaf_id = block_list[0][1]
+            else :
+                leaf_id = block_list[i][1]
         else :
             leaf_id = block_list[i][1]
-            leaf = _read_node(self.path / leaf_id)
-            insort(leaf, (key, heap_id))
-            _write_node(self.path / leaf_id, leaf)
+
+        leaf = _read_node(self.path / leaf_id)
+        insort(leaf, (key, heap_id), key=lambda x : x[0])
+
+        # TODO : split goes here
+        _write_node(self.path / leaf_id, leaf)
 
         #_write_node(self.path / "block_list", block_list)
 
