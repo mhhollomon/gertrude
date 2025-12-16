@@ -8,8 +8,8 @@ from .globals import _generate_id, TYPES, DBContext
 
 _NODE_FANOUT = 6
 
-type DataList = List[Tuple[Any, str]]
-
+type DataList = List[Tuple[Any, int]]
+type LeafData = List[Tuple[Any, str]]
 
 def _reserve_file_id(path : Path) -> str :
     while True :
@@ -25,18 +25,6 @@ def _read_node(path : Path) -> DataList:
     with open(path, "rb") as f :
         return cast(DataList, msgpack.load(f))
 
-def _write_node(path : Path, node : DataList) :
-    with open(path, "wb") as f :
-        msgpack.dump(node, f)
-
-def _create_node(path : Path, node : DataList) -> str :
-    new_id = _reserve_file_id(path)
-    new_file = path / new_id
-    _write_node(new_file, node)
-
-    return new_id
-
-
 class Index :
     def __init__(self, index_name : str, path : Path, column : str, coltype : str, db_ctx : DBContext) :
         self.index_name = index_name
@@ -46,6 +34,18 @@ class Index :
         self.real_type = TYPES[coltype]
         self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
         self.db_ctx = db_ctx
+
+    def _write_node(self, path : int | Path, node : DataList | LeafData) :
+        if not isinstance(path, Path) :
+            path = self.path / f"{path:02}"
+        with open(path, "wb") as f :
+            msgpack.dump(node, f)
+
+    def _read_node(self, node_id : int) -> LeafData:
+        path = self.path / f"{node_id:02}"
+        with open(path, "rb") as f :
+            return cast(LeafData, msgpack.load(f))
+
 
     def _create(self, iterator) :
         if self.path.exists() :
@@ -66,7 +66,7 @@ class Index :
 
         ## Create the root node
         block_list_path = self.path / "block_list"
-        first_block_id = _reserve_file_id(self.path)
+        first_block_id = self.db_ctx.generate_id()
         # we'll work about splitting the node later
         records = []
         for record in iterator() :
@@ -75,11 +75,11 @@ class Index :
             records.append((key, heap_id))
 
         records.sort(key=lambda x : getattr(x, self.column))
-        _write_node(self.path / first_block_id, records)
+        self._write_node(first_block_id, records)
 
         block_list = [(None, first_block_id)]
 
-        _write_node(block_list_path, block_list)
+        self._write_node(block_list_path, block_list)
 
 
     def _insert(self, obj : Any, heap_id : str) :
@@ -96,13 +96,11 @@ class Index :
         else :
             leaf_id = block_list[i][1]
 
-        leaf = _read_node(self.path / leaf_id)
+        leaf = self._read_node(leaf_id)
         insort(leaf, (key, heap_id), key=lambda x : x[0])
 
         # TODO : split goes here
-        _write_node(self.path / leaf_id, leaf)
-
-        #_write_node(self.path / "block_list", block_list)
+        self._write_node(leaf_id, leaf)
 
 
 
