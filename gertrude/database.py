@@ -5,7 +5,8 @@ import json
 from .table import Table, FieldSpec
 
 from .globals import ( CURRENT_SCHEMA_VERSION,
-                      GERTRUDE_VERSION, NAME_REGEX)
+                      GERTRUDE_VERSION, NAME_REGEX, DBContext
+                      )
 
 from .int_id import IntegerIdGenerator
 
@@ -19,13 +20,18 @@ _OPTIONS = {
 # Database class
 #################################################################
 class Database :
-    def __init__(self, db_path : Path, comment : str = '') :
+    def __init__(self, db_path : Path, *, mode : str = "rw", comment : str = '') :
         self.db_path = db_path
         self.table_defs = {}
+        self.mode = mode
         self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
+        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen)
 
         need_setup = True
         if not self.db_path.exists() :
+            if self.mode == "ro" :
+                raise ValueError(f"Database {self.db_path} does not exist.")
+
             self.db_path.mkdir()
         else :
             assert self.db_path.is_dir()
@@ -55,7 +61,7 @@ class Database :
                 "comment" : comment,
             }
             (self.db_path / "gertrude.conf").write_text(json.dumps(config))
-            (self.db_path / "tables").mkdir(exist_ok=True)
+            (self.db_path / "tables").mkdir()
 
     def _load_table_defs(self) :
         tables = self.db_path / "tables"
@@ -64,7 +70,7 @@ class Database :
 
         for table_path in tables.glob("*") :
             assert table_path.is_dir()
-            table = Table(self, table_path, table_path.name, [], self.id_gen)
+            table = Table(table_path, table_path.name, [], self.db_ctx)
             table._load_def()
             self.table_defs[table_path.name] = table
 
@@ -83,7 +89,7 @@ class Database :
         # Does the directory exist?
         table_path = self.db_path / "tables" / name
 
-        table = Table(self, table_path, name, spec, self.id_gen)
+        table = Table(table_path, name, spec, self.db_ctx)
         table._create()
         self.table_defs[name] = table
 

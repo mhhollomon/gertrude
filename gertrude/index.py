@@ -1,13 +1,10 @@
 from bisect import bisect_left, insort
 import json
+import msgpack
 from pathlib import Path
 from typing import Any, List, NamedTuple, Tuple, cast
 
-import msgpack
-
-from .int_id import IntegerIdGenerator
-
-from .globals import _generate_id, TYPES
+from .globals import _generate_id, TYPES, DBContext
 
 _NODE_FANOUT = 6
 
@@ -41,14 +38,14 @@ def _create_node(path : Path, node : DataList) -> str :
 
 
 class Index :
-    def __init__(self, index_name : str, path : Path, column : str, coltype : str, int_id_gen : IntegerIdGenerator) :
+    def __init__(self, index_name : str, path : Path, column : str, coltype : str, db_ctx : DBContext) :
         self.index_name = index_name
         self.column = column
         self.coltype = coltype
         self.path = path
         self.real_type = TYPES[coltype]
         self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
-        self.int_id_gen = int_id_gen
+        self.db_ctx = db_ctx
 
     def _create(self, iterator) :
         if self.path.exists() :
@@ -56,7 +53,7 @@ class Index :
 
         self.path.mkdir()
 
-        self.id = self.int_id_gen.gen_id()
+        self.id = self.db_ctx.generate_id()
 
         config = {
             "column" : self.column,

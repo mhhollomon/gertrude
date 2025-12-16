@@ -19,6 +19,22 @@ TYPES = {
     "bool" : bool,
 }
 
+from .int_id import IntegerIdGenerator
+
+class DBContext :
+    def __init__(self, db_path : Path, mode : str, id_gen : IntegerIdGenerator) :
+        self.db_path = db_path
+        self.rw_mode = mode
+        self.id_gen = id_gen
+
+    def path(self) -> Path :
+        return self.db_path
+
+    def mode(self) -> str :
+        return self.rw_mode
+
+    def generate_id(self) -> int :
+        return self.id_gen.gen_id()
 
 def _generate_id():
     return generate(alphabet=HEAP_ID_ALPHABET, size=HEAP_ID_LENGTH)
@@ -38,11 +54,11 @@ def _save_to_heap(heap : Path, value : Any) -> str :
 
     with proposed_path.open("wb") as f:
         msgpack.dump(value, f)
-    
+
     return hash_id
 
 def _delete_from_heap(heap : Path, hash_id : str) -> Any :
-    """ Note that the hash_id is not validated nor are any 
+    """ Note that the hash_id is not validated nor are any
     empty directories removed.
     """
     heap_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
@@ -51,7 +67,7 @@ def _delete_from_heap(heap : Path, hash_id : str) -> Any :
         return None
 
     retval = msgpack.unpackb(heap_path.read_bytes())
-    
+
     heap_path.unlink()
 
     return retval

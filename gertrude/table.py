@@ -4,8 +4,7 @@ from typing import Dict, Iterable, NamedTuple, Any, cast
 import json
 import msgpack
 
-from gertrude.globals import NAME_REGEX, _save_to_heap, TYPES
-from .int_id import IntegerIdGenerator
+from .globals import NAME_REGEX, DBContext, _save_to_heap, TYPES
 
 from .index import Index
 
@@ -15,21 +14,16 @@ FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", d
 
 class Table :
     def __init__(self,
-                parent : Any,
                 db_path : Path,
                 table_name : str,
                 spec : Iterable[FieldSpec],
-                int_id_gen : IntegerIdGenerator) :
-
-        from gertrude.database import Database
-        assert isinstance(parent, Database)
+                db_ctx : DBContext) :
 
         self.db_path = db_path
         self.index : Dict[str, Index] = {}
         self.spec = spec
         self.name = table_name
-        self.int_id_gen = int_id_gen
-        self.parent = cast(Database, parent)
+        self.db_ctx = db_ctx
         self.open = True
 
     def _drop(self) :
@@ -66,7 +60,7 @@ class Table :
             raise ValueError(f"Table {self.name} directory already exists.")
 
         # good to go
-        self.id = self.int_id_gen.gen_id()
+        self.id = self.db_ctx.generate_id()
         config = {
             "spec" : self.spec,
             "id" : self.id
@@ -118,7 +112,7 @@ class Table :
         if len(col) != 1 :
             raise ValueError(f"Invalid column name {column} for table {self.name}")
 
-        new_index = Index(index_name, self.db_path / "index" / index_name, column, col[0].type, self.int_id_gen)
+        new_index = Index(index_name, self.db_path / "index" / index_name, column, col[0].type, self.db_ctx)
         self.index[index_name] = new_index
 
         new_index._create(self._data_iter)
