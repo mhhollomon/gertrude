@@ -5,6 +5,7 @@ import json
 import msgpack
 
 from gertrude.globals import NAME_REGEX, _save_to_heap, TYPES
+from .int_id import IntegerIdGenerator
 
 from .index import Index
 
@@ -12,13 +13,13 @@ from .index import Index
 FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
 
 
-
 class Table :
     def __init__(self,
-                    parent : Any,
-                    db_path : Path,
-                    table_name : str,
-                    spec : Iterable[FieldSpec]) :
+                parent : Any,
+                db_path : Path,
+                table_name : str,
+                spec : Iterable[FieldSpec],
+                int_id_gen : IntegerIdGenerator) :
 
         from gertrude.database import Database
         assert isinstance(parent, Database)
@@ -27,6 +28,7 @@ class Table :
         self.index : Dict[str, Index] = {}
         self.spec = spec
         self.name = table_name
+        self.int_id_gen = int_id_gen
         self.parent = cast(Database, parent)
         self.open = True
 
@@ -64,8 +66,14 @@ class Table :
             raise ValueError(f"Table {self.name} directory already exists.")
 
         # good to go
+        self.id = self.int_id_gen.gen_id()
+        config = {
+            "spec" : self.spec,
+            "id" : self.id
+        }
+
         self.db_path.mkdir(exist_ok=True)
-        (self.db_path / "config").write_text(json.dumps(self.spec))
+        (self.db_path / "config").write_text(json.dumps(config))
         (self.db_path / "data").mkdir()
         (self.db_path / "index").mkdir()
 
@@ -73,7 +81,9 @@ class Table :
         self._create_pk()
 
     def _load_def(self) :
-        self.spec = json.loads((self.db_path / "config").read_text())
+        config = json.loads((self.db_path / "config").read_text())
+        self.id = config["id"]
+        self.spec = config["spec"]
 
         self.record = self._generate_tuple_type()
 
@@ -106,7 +116,7 @@ class Table :
         if len(col) != 1 :
             raise ValueError(f"Invalid column name {column} for table {self.name}")
 
-        new_index = Index(index_name, self.db_path / "index" / index_name, column, col[0].type)
+        new_index = Index(index_name, self.db_path / "index" / index_name, column, col[0].type, self.int_id_gen)
         self.index[index_name] = new_index
 
         new_index._create(self._data_iter)
@@ -114,12 +124,12 @@ class Table :
 
     def get_spec(self) :
         return self.spec
-    
+
     def insert(self, record : Any) :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
-        
-        if not isinstance(record, self.record) : 
+
+        if not isinstance(record, self.record) :
             if isinstance(record, dict) :
                 record_object = self.record(**record)
             else :

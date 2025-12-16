@@ -18,15 +18,20 @@ class Explorer:
         print(self.db_path)
         config = json.loads((self.db_path / "gertrude.conf").read_text())
         print(f"Comment: {config['comment']}")
+        int_id_path = self.db_path / "int_id"
+        if int_id_path.exists() :
+            data = msgpack.unpackb(int_id_path.read_bytes())
+            print(f"int_id: {data}")
         print("Tables:")
         p = '  '
         for table in self.db_path.glob("tables/*") :
             print(f"{p}{table.name}")
+            config = json.loads((table / "config").read_text())
+            print(f"{p}{p}id = {config['id']}")
             print(f"{p}{p}Fields:")
-            for field in json.loads((table / "config").read_text()) :
+            for field in config["spec"] :
                 fieldspec = FieldSpec(*field)
                 print(f"{p}{p}{p}{fieldspec}")
-                #print(f"{p}{p}{p}{field['name']} ({field['type']})")
             print(f"{p}{p}Indexes:")
             for index in table.glob("index/*") :
                 config = json.loads((index / "config").read_text())
@@ -35,8 +40,10 @@ class Explorer:
     def table_info(self, table_name : str) :
         table = self.db_path / "tables" / table_name
         print(table)
+        config = json.loads((table / "config").read_text())
+        print(f"id = {config['id']}")
         print("Fields:")
-        for field in json.loads((table / "config").read_text()) :
+        for field in config["spec"] :
             fieldspec = FieldSpec(*field)
             print(f"  {fieldspec}")
         print("Indexes:")

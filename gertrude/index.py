@@ -5,6 +5,8 @@ from typing import Any, List, NamedTuple, Tuple, cast
 
 import msgpack
 
+from .int_id import IntegerIdGenerator
+
 from .globals import _generate_id, TYPES
 
 _NODE_FANOUT = 6
@@ -39,13 +41,14 @@ def _create_node(path : Path, node : DataList) -> str :
 
 
 class Index :
-    def __init__(self, index_name : str, path : Path, column : str, coltype : str) :
+    def __init__(self, index_name : str, path : Path, column : str, coltype : str, int_id_gen : IntegerIdGenerator) :
         self.index_name = index_name
         self.column = column
         self.coltype = coltype
         self.path = path
         self.real_type = TYPES[coltype]
         self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
+        self.int_id_gen = int_id_gen
 
     def _create(self, iterator) :
         if self.path.exists() :
@@ -53,8 +56,16 @@ class Index :
 
         self.path.mkdir()
 
+        self.id = self.int_id_gen.gen_id()
+
+        config = {
+            "column" : self.column,
+            "coltype" : self.coltype,
+            "id" : self.id
+        }
+
         ## Dump config info
-        (self.path / "config").write_text(json.dumps([self.column, self.coltype]))
+        (self.path / "config").write_text(json.dumps(config))
 
         ## Create the root node
         block_list_path = self.path / "block_list"
