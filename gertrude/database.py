@@ -1,8 +1,6 @@
 from typing import Iterable
-from nanoid import generate
 from pathlib import Path
 import json
-import regex as re
 
 from .table import Table, FieldSpec
 
@@ -32,6 +30,8 @@ class Database :
         else :
             assert self.db_path.is_dir()
             conf_file = self.db_path / "gertrude.conf"
+
+            # if the directory is not empty the conf file better be there.
             if len(list(self.db_path.glob("*"))) > 0:
                 if not conf_file.exists() :
                     raise ValueError(f"Database {self.db_path} is not initialized.")

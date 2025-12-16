@@ -87,6 +87,8 @@ class Table :
 
         self.record = self._generate_tuple_type()
 
+        # TODO : load indexes
+
     def _data_iter(self) :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
