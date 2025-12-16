@@ -8,7 +8,9 @@ from .globals import _generate_id, TYPES, DBContext
 
 _NODE_FANOUT = 6
 
+# Used by the block list
 type DataList = List[Tuple[Any, int]]
+# use by leaf nodes
 type LeafData = List[Tuple[Any, str]]
 
 def _reserve_file_id(path : Path) -> str :
@@ -37,12 +39,12 @@ class Index :
 
     def _write_node(self, path : int | Path, node : DataList | LeafData) :
         if not isinstance(path, Path) :
-            path = self.path / f"{path:02}"
+            path = self.path / f"{path:03}"
         with open(path, "wb") as f :
             msgpack.dump(node, f)
 
     def _read_node(self, node_id : int) -> LeafData:
-        path = self.path / f"{node_id:02}"
+        path = self.path / f"{node_id:03}"
         with open(path, "rb") as f :
             return cast(LeafData, msgpack.load(f))
 

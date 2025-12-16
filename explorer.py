@@ -76,7 +76,7 @@ class Explorer:
 
         print("blocks:")
         for block_id in block_list :
-            block_path = index / f"{block_id:02}"
+            block_path = index / f"{block_id:03}"
             print(f"  {block_path}")
             with open(block_path, "rb") as f :
                 data = cast(DataList, msgpack.unpackb(f.read()))
