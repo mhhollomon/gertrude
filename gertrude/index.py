@@ -76,7 +76,9 @@ class Index :
             key = getattr(data, self.column)
             records.append((key, heap_id))
 
-        records.sort(key=lambda x : getattr(x, self.column))
+        records.sort(key=lambda x : x[0])
+
+        # TODO : Split this into multiple nodes if needed.
         self._write_node(first_block_id, records)
 
         block_list = [(None, first_block_id)]
@@ -88,26 +90,49 @@ class Index :
         block_list = _read_node(self.path / "block_list")
 
         key = getattr(obj, self.column)
+        print(f"Inserting {key}")
 
-        i = bisect_left(block_list, key, lo=1)
+        # Find which block the key may be in.
+        # The block pointed to by index n has keys that
+        # greater than or equal to the key at index n.
+        # So we need to find the largest key that is still less than
+        # the given key.
+        # index=0 is for those keys that are strictly less than
+        # the first key.
+        i = bisect_left(block_list, key, lo=1, key=lambda x : x[0])
+        print(f"raw i = {i}")
+        # if the index is 1, it is either because we need to
+        # look at the block at index 1 or we need to look at
+        # the block at index 0.
         if i == 1 :
+            # If the block_list has only one entry, then
+            # we need to look at the block at index 0.
+            # If the given key is less that the key at index 1,
+            # then we need to look at the block at index 0.
             if i == len(block_list) or block_list[i][0] < key :
-                leaf_id = block_list[0][1]
-            else :
-                leaf_id = block_list[i][1]
-        else :
-            leaf_id = block_list[i][1]
+                i = 0
+        elif i == len(block_list) :
+            i -= 1
+        print(f"final i = {i}")
+        leaf_id = block_list[i][1]
 
         leaf = self._read_node(leaf_id)
         insort(leaf, (key, heap_id), key=lambda x : x[0])
 
-        # TODO : split goes here
-        self._write_node(leaf_id, leaf)
+        if len(leaf) >= _NODE_FANOUT :
+            self._split(leaf, leaf_id, block_list, i)
+        else :
+            self._write_node(leaf_id, leaf)
 
 
 
-    def _split(self, node : DataList, orig_id : str) :
+    def _split(self, node : LeafData, orig_id : int, block_list : DataList, index : int) :
         left_data = node[:_NODE_FANOUT//2]
-        left_id = _reserve_file_id(self.path)
         right_data = node[_NODE_FANOUT//2:]
-        right_id = _reserve_file_id(self.path)
+        self._write_node(orig_id, left_data)
+        right_id = self.db_ctx.generate_id()
+        self._write_node(right_id, right_data)
+
+        block_list.insert(index+1, (right_data[0][0], right_id))
+
+        self._write_node(self.path / "block_list", block_list)

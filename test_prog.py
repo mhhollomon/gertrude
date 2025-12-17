@@ -17,3 +17,14 @@ table = db.create_table("test", [
 
 table.insert({"name" : "bob", "age" : 12})
 table.insert({"name" : "alice", "age" : 22})
+table.insert({"name" : "alice", "age" : 22})
+table.insert({"name" : "mark", "age" : 62})
+table.insert({"name" : "martha", "age" : 32})
+table.insert({"name" : "eli", "age" : 20})
+table.insert({"name" : "rebecca", "age" : 26})
+
+# Test building an index after the fact.
+table.add_index("age_index", "age")
+
+for record in table.scan() :
+    print(f"{record.name} is {record.age} years old.")
