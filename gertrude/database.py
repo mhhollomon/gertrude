@@ -12,6 +12,7 @@ from .int_id import IntegerIdGenerator
 
 _OPTIONS = {
     "pk" : bool,
+    "unique" : bool
 }
 
 

@@ -28,7 +28,8 @@ def _read_node(path : Path) -> DataList:
         return cast(DataList, msgpack.load(f))
 
 class Index :
-    def __init__(self, index_name : str, path : Path, column : str, coltype : str, db_ctx : DBContext) :
+    def __init__(self, index_name : str, path : Path,
+                 column : str, coltype : str, db_ctx : DBContext, *, unique : bool = False) :
         self.index_name = index_name
         self.column = column
         self.coltype = coltype
@@ -36,10 +37,18 @@ class Index :
         self.real_type = TYPES[coltype]
         self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
         self.db_ctx = db_ctx
+        self.unique = unique
 
-    def _write_node(self, path : int | Path, node : DataList | LeafData) :
-        if not isinstance(path, Path) :
-            path = self.path / f"{path:03}"
+        # cache the block_list
+        self.block_list : DataList | None = None
+
+    def _get_block_list(self) :
+        if self.block_list is None :
+            self.block_list = _read_node(self.path / "block_list")
+        return self.block_list
+
+    def _write_node(self, node_id : int, node : LeafData) :
+        path = self.path / f"{node_id:03}"
         with open(path, "wb") as f :
             msgpack.dump(node, f)
 
@@ -47,6 +56,11 @@ class Index :
         path = self.path / f"{node_id:03}"
         with open(path, "rb") as f :
             return cast(LeafData, msgpack.load(f))
+
+    def _update_block_list(self, block_list : DataList) :
+        self.block_list = block_list
+        with open(self.path / "block_list", "wb") as f :
+            msgpack.dump(block_list, f)
 
 
     def _create(self, iterator) :
@@ -60,7 +74,8 @@ class Index :
         config = {
             "column" : self.column,
             "coltype" : self.coltype,
-            "id" : self.id
+            "id" : self.id,
+            "unique" : self.unique,
         }
 
         ## Dump config info
@@ -71,10 +86,16 @@ class Index :
         first_block_id = self.db_ctx.generate_id()
         # we'll work about splitting the node later
         records = []
+        keyset = set()
         for record in iterator() :
             (heap_id, data) = record
             key = getattr(data, self.column)
             records.append((key, heap_id))
+
+            if self.unique :
+                if key in keyset :
+                    raise ValueError(f"Duplicate key {key} in unique index {self.index_name}")
+                keyset.add(key)
 
         records.sort(key=lambda x : x[0])
 
@@ -83,14 +104,11 @@ class Index :
 
         block_list = [(None, first_block_id)]
 
-        self._write_node(block_list_path, block_list)
+        self._update_block_list(block_list)
 
-
-    def _insert(self, obj : Any, heap_id : str) :
-        block_list = _read_node(self.path / "block_list")
-
-        key = getattr(obj, self.column)
-        print(f"Inserting {key}")
+    def _find_block(self, key : Any) -> Tuple[int, int] :
+        block_list = self._get_block_list()
+        print(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
         # The block pointed to by index n has keys that
@@ -116,15 +134,21 @@ class Index :
         print(f"final i = {i}")
         leaf_id = block_list[i][1]
 
+        return (leaf_id, i)
+
+    def _insert(self, obj : Any, heap_id : str) :
+
+        key = getattr(obj, self.column)
+        leaf_id, i = self._find_block(key)
+
         leaf = self._read_node(leaf_id)
         insort(leaf, (key, heap_id), key=lambda x : x[0])
 
         if len(leaf) >= _NODE_FANOUT :
+            block_list = self._get_block_list()
             self._split(leaf, leaf_id, block_list, i)
         else :
             self._write_node(leaf_id, leaf)
-
-
 
     def _split(self, node : LeafData, orig_id : int, block_list : DataList, index : int) :
         left_data = node[:_NODE_FANOUT//2]
@@ -135,4 +159,19 @@ class Index :
 
         block_list.insert(index+1, (right_data[0][0], right_id))
 
-        self._write_node(self.path / "block_list", block_list)
+        self._update_block_list(block_list)
+
+    def test_for_insert(self, record : Any) -> Tuple[bool, str] :
+        if not self.unique :
+            return (True, "")
+
+        key = getattr(record, self.column)
+
+        leaf_id, i = self._find_block(key)
+        leaf = self._read_node(leaf_id)
+        i = bisect_left(leaf, key, key=lambda x : x[0])
+
+        if i < len(leaf) and leaf[i][0] == key :
+            return False, f"Duplicate key in column '{self.column}' for index {self.index_name}"
+
+        return True, ""

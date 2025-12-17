@@ -53,7 +53,7 @@ class Table :
         else :
             return
 
-        self.add_index("pk_" + pk.name, pk.name)
+        self.add_index("pk_" + pk.name, pk.name, unique=True)
 
     def _create(self) :
         if self.db_path.exists() :
@@ -101,7 +101,7 @@ class Table :
     #################################################################
     # Public API
     #################################################################
-    def add_index(self, index_name : str, column : str) :
+    def add_index(self, index_name : str, column : str, **kwargs) :
         if not NAME_REGEX.match(index_name) :
             raise ValueError(f"Invalid index name {index_name} for table {self.name}")
 
@@ -112,7 +112,9 @@ class Table :
         if len(col) != 1 :
             raise ValueError(f"Invalid column name {column} for table {self.name}")
 
-        new_index = Index(index_name, self.db_path / "index" / index_name, column, col[0].type, self.db_ctx)
+        new_index = Index(index_name,
+                          self.db_path / "index" / index_name,
+                          column, col[0].type, self.db_ctx, **kwargs)
         self.index[index_name] = new_index
 
         new_index._create(self._data_iter)
@@ -131,6 +133,11 @@ class Table :
             else :
                 record_object = self.record(*record)
         print(f"--- record_object = {record_object}")
+
+        for index in self.index.values() :
+            success, msg = index.test_for_insert(record_object)
+            if not success :
+                raise ValueError(f"Failed to insert record: {msg}")
 
         heap_id = _save_to_heap(self.db_path / "data", record_object)
 

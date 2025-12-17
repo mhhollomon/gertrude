@@ -17,7 +17,11 @@ table = db.create_table("test", [
 
 table.insert({"name" : "bob", "age" : 12})
 table.insert({"name" : "alice", "age" : 22})
-table.insert({"name" : "alice", "age" : 22})
+try :
+    table.insert({"name" : "alice", "age" : 22})
+except ValueError as e :
+    print(e)
+table.insert({"name" : "george", "age" : 14})
 table.insert({"name" : "mark", "age" : 62})
 table.insert({"name" : "martha", "age" : 32})
 table.insert({"name" : "eli", "age" : 20})
