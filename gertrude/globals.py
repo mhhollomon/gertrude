@@ -20,12 +20,17 @@ TYPES = {
 }
 
 from .int_id import IntegerIdGenerator
+from .cache import LRUCache
 
 class DBContext :
-    def __init__(self, db_path : Path, mode : str, id_gen : IntegerIdGenerator) :
+    def __init__(self, db_path : Path, 
+                 mode : str, 
+                 id_gen : IntegerIdGenerator,
+                 cache : LRUCache) :
         self.db_path = db_path
         self.rw_mode = mode
         self.id_gen = id_gen
+        self.cache = cache
 
     def path(self) -> Path :
         return self.db_path

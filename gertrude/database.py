@@ -9,6 +9,7 @@ from .globals import ( CURRENT_SCHEMA_VERSION,
                       )
 
 from .int_id import IntegerIdGenerator
+from .cache import LRUCache
 
 _OPTIONS = {
     "pk" : bool,
@@ -26,7 +27,7 @@ class Database :
         self.table_defs = {}
         self.mode = mode
         self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
-        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen)
+        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen, LRUCache(100))
 
         need_setup = True
         if not self.db_path.exists() :
@@ -99,3 +100,6 @@ class Database :
     def drop_table(self, table_name : str) :
         table = self.table_defs.pop(table_name)
         table._drop()
+
+    def get_cache_stats(self) :
+        return self.db_ctx.cache.stats

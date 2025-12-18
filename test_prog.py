@@ -32,3 +32,7 @@ table.add_index("age_index", "age")
 
 for record in table.scan() :
     print(f"{record.name} is {record.age} years old.")
+
+
+print("Cache stats:")
+print(db.get_cache_stats())

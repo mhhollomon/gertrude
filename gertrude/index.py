@@ -13,17 +13,8 @@ type DataList = List[Tuple[Any, int]]
 # use by leaf nodes
 type LeafData = List[Tuple[Any, str]]
 
-def _reserve_file_id(path : Path) -> str :
-    while True :
-        new_id = _generate_id()
-        proposed_path = path / new_id
-        if not proposed_path.exists():
-            break
-    proposed_path.write_bytes(b'')
-    return new_id
 
-
-def _read_node(path : Path) -> DataList:
+def _read_block_list(path : Path) -> DataList:
     with open(path, "rb") as f :
         return cast(DataList, msgpack.load(f))
 
@@ -44,18 +35,16 @@ class Index :
 
     def _get_block_list(self) :
         if self.block_list is None :
-            self.block_list = _read_node(self.path / "block_list")
+            self.block_list = _read_block_list(self.path / "block_list")
         return self.block_list
 
-    def _write_node(self, node_id : int, node : LeafData) :
-        path = self.path / f"{node_id:03}"
-        with open(path, "wb") as f :
-            msgpack.dump(node, f)
+    def _write_node(self, node_id : int, node : LeafData, cache : bool = True) :
+        raw_data = cast(bytes, (msgpack.dumps(node)))
+        self.db_ctx.cache.put(self.id, node_id, raw_data, cache=cache)
 
     def _read_node(self, node_id : int) -> LeafData:
-        path = self.path / f"{node_id:03}"
-        with open(path, "rb") as f :
-            return cast(LeafData, msgpack.load(f))
+        raw_data = self.db_ctx.cache.get(self.id, node_id)
+        return cast(LeafData, msgpack.loads(raw_data))
 
     def _update_block_list(self, block_list : DataList) :
         self.block_list = block_list
@@ -80,6 +69,9 @@ class Index :
 
         ## Dump config info
         (self.path / "config").write_text(json.dumps(config))
+
+        ## Register with the cache
+        self.db_ctx.cache.register(self.id, self.path)
 
         ## Create the root node
         block_list_path = self.path / "block_list"
