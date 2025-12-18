@@ -73,10 +73,6 @@ class Index :
         ## Register with the cache
         self.db_ctx.cache.register(self.id, self.path)
 
-        ## Create the root node
-        block_list_path = self.path / "block_list"
-        first_block_id = self.db_ctx.generate_id()
-        # we'll work about splitting the node later
         records = []
         keyset = set()
         for record in iterator() :
@@ -89,12 +85,27 @@ class Index :
                     raise ValueError(f"Duplicate key {key} in unique index {self.index_name}")
                 keyset.add(key)
 
+        block_list = []
         records.sort(key=lambda x : x[0])
 
-        # TODO : Split this into multiple nodes if needed.
-        self._write_node(first_block_id, records)
+        while len(records) >= _NODE_FANOUT :
+            new_block_id = self.db_ctx.generate_id()
+            block_list.append((records[0][0], new_block_id))
+            self._write_node(new_block_id, records[:_NODE_FANOUT], cache=False)
+            records = records[_NODE_FANOUT:]
 
-        block_list = [(None, first_block_id)]
+        if len(records) > 0 :
+            new_block_id = self.db_ctx.generate_id()
+            block_list.append((records[0][0], new_block_id))
+            self._write_node(new_block_id, records[:_NODE_FANOUT], cache=False)
+
+        if len(block_list) > 0 :
+            block_list[0] = (None, block_list[0][1])
+        else :
+            # create an empty block
+            first_block_id = self.db_ctx.generate_id()
+            self._write_node(first_block_id, [], cache=False)
+            block_list.append((None, first_block_id))
 
         self._update_block_list(block_list)
 
@@ -119,7 +130,7 @@ class Index :
             # we need to look at the block at index 0.
             # If the given key is less that the key at index 1,
             # then we need to look at the block at index 0.
-            if i == len(block_list) or block_list[i][0] < key :
+            if i == len(block_list) or block_list[i][0] > key :
                 i = 0
         elif i == len(block_list) :
             i -= 1

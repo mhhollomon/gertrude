@@ -30,6 +30,9 @@ table.insert({"name" : "rebecca", "age" : 26})
 # Test building an index after the fact.
 table.add_index("age_index", "age")
 
+table.insert({"name" : "sam", "age" : 18})
+
+print("Scan:")
 for record in table.scan() :
     print(f"{record.name} is {record.age} years old.")
 

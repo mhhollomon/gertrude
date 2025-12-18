@@ -27,7 +27,7 @@ class LRUCache :
     def get(self, index : int, block_id : int) -> bytes:
         if index not in self.paths :
             raise Exception(f"Index {index} not registered")
-        
+
         if (index, block_id) in self.cache :
             self.stats.hits += 1
             self.cache.move_to_end((index, block_id))
@@ -41,7 +41,7 @@ class LRUCache :
                 self.stats.evictions += 1
                 self.cache.popitem(last=False)
             return data
-    
+
     def lookup(self, index : int, block_id : int) -> bytes | None :
         if (index, block_id) in self.cache :
             self.stats.hits += 1
@@ -49,18 +49,23 @@ class LRUCache :
             return self.cache[(index, block_id)]
 
         return None
-    
+
     def put(self, index : int, block_id : int, data : bytes, cache : bool = True) :
+        if index not in self.paths :
+            raise Exception(f"Index {index} not registered")
+
         if cache :
             if (index, block_id) in self.cache :
                 self.stats.hits += 1
                 self.cache.move_to_end((index, block_id))
 
-            if cache : 
+            if cache :
                 self.cache[(index, block_id)] = data
                 if len(self.cache) > self.max_size :
                     self.stats.evictions += 1
                     self.cache.popitem(last=False)
+        elif (index, block_id) in self.cache :
+            del self.cache[(index, block_id)]
 
         with open(self.paths[index] / f"{block_id:03}", "wb") as f :
             f.write(data)
