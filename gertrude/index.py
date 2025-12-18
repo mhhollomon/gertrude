@@ -162,8 +162,7 @@ class Index :
         else :
             self._write_node(leaf_id, leaf)
 
-    def _split(self, node : LeafData, orig_id : int, block_list : DataList, index : int) :
-
+    def _pick_split_point(self, node : LeafData) :
         # Calculate where to split the block.
         # Prefer to split it down the middle, but if
         # there are multiple entries with the same key,
@@ -207,9 +206,16 @@ class Index :
                     new_split_point = split_point
                 else :
                     new_split_point = split_point - left_offset
+
+        return new_split_point
+
+    def _split(self, node : LeafData, orig_id : int, block_list : DataList, index : int) :
+
+        print(f"--- splitting {orig_id} at block_list index {index}")
             
-        split_point = new_split_point
+        split_point = self._pick_split_point(node)
         print(f"split_point = {split_point}")
+
         left_data = node[:split_point]
         right_data = node[split_point:]
         print(f"left_data = {left_data}")
