@@ -11,6 +11,12 @@ from .index import Index
 
 FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
 
+OPT_DEFAULT = {
+    "pk" : False,
+    "unique" : False,
+    "nullable" : True,
+}
+
 
 class Table :
     def __init__(self,
@@ -21,10 +27,12 @@ class Table :
 
         self.db_path = db_path
         self.index : Dict[str, Index] = {}
-        self.spec = spec
+        self.orig_spec = spec
         self.name = table_name
         self.db_ctx = db_ctx
         self.open = True
+
+        self.spec = self._reform_spec()
 
     def _drop(self) :
         if not self.open or self.parent is None :
@@ -33,6 +41,22 @@ class Table :
         shutil.rmtree(self.db_path)
         self.open = False
         self.parent = None
+
+    def _reform_spec(self) :
+        x = [FieldSpec(s.name, s.type, {**OPT_DEFAULT, **s.options}) for s in self.orig_spec]
+
+        nameset = set()
+        for s in x :
+            if s.name in nameset :
+                raise ValueError(f"Duplicate field name {s.name} in table {self.name}")
+            nameset.add(s.name)
+
+            opts = s.options
+            if opts["pk"] :
+                opts["unique"] = True
+                opts["nullable"] = False
+
+        return x
 
     def _generate_tuple_type(self) :
         tuple_types = []
@@ -53,7 +77,7 @@ class Table :
         else :
             return
 
-        self.add_index("pk_" + pk.name, pk.name, unique=True)
+        self.add_index("pk_" + pk.name, pk.name, unique=True, nullable=False)
 
     def _create(self) :
         if self.db_path.exists() :

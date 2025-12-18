@@ -6,7 +6,7 @@ from typing import Any, List, NamedTuple, Tuple, cast
 
 from .globals import _generate_id, TYPES, DBContext
 
-_NODE_FANOUT = 6
+_NODE_FANOUT : int = 6
 
 # Used by the block list
 type DataList = List[Tuple[Any, int]]
@@ -20,7 +20,8 @@ def _read_block_list(path : Path) -> DataList:
 
 class Index :
     def __init__(self, index_name : str, path : Path,
-                 column : str, coltype : str, db_ctx : DBContext, *, unique : bool = False) :
+                 column : str, coltype : str, db_ctx : DBContext, *, 
+                 unique : bool = False, nullable : bool = True) :
         self.index_name = index_name
         self.column = column
         self.coltype = coltype
@@ -29,6 +30,7 @@ class Index :
         self.record = NamedTuple(index_name, [('key', self.real_type), ('value', str)])
         self.db_ctx = db_ctx
         self.unique = unique
+        self.nullable = nullable
 
         # cache the block_list
         self.block_list : DataList | None = None
@@ -65,6 +67,7 @@ class Index :
             "coltype" : self.coltype,
             "id" : self.id,
             "unique" : self.unique,
+            "nullable" : self.nullable,
         }
 
         ## Dump config info
@@ -85,19 +88,25 @@ class Index :
                     raise ValueError(f"Duplicate key {key} in unique index {self.index_name}")
                 keyset.add(key)
 
+            if not self.nullable :
+                if key is None :
+                    raise ValueError(f"Null key in non-nullable index {self.index_name}")
+
         block_list = []
         records.sort(key=lambda x : x[0])
 
-        while len(records) >= _NODE_FANOUT :
+        init_fanout = int(_NODE_FANOUT * 0.75)
+
+        while len(records) >= init_fanout :
             new_block_id = self.db_ctx.generate_id()
             block_list.append((records[0][0], new_block_id))
-            self._write_node(new_block_id, records[:_NODE_FANOUT], cache=False)
-            records = records[_NODE_FANOUT:]
+            self._write_node(new_block_id, records[:init_fanout], cache=False)
+            records = records[init_fanout:]
 
         if len(records) > 0 :
             new_block_id = self.db_ctx.generate_id()
             block_list.append((records[0][0], new_block_id))
-            self._write_node(new_block_id, records[:_NODE_FANOUT], cache=False)
+            self._write_node(new_block_id, records, cache=False)
 
         if len(block_list) > 0 :
             block_list[0] = (None, block_list[0][1])
@@ -132,7 +141,7 @@ class Index :
             # then we need to look at the block at index 0.
             if i == len(block_list) or block_list[i][0] > key :
                 i = 0
-        elif i == len(block_list) :
+        elif i == len(block_list) or block_list[i][0] > key :
             i -= 1
         print(f"final i = {i}")
         leaf_id = block_list[i][1]
@@ -154,8 +163,58 @@ class Index :
             self._write_node(leaf_id, leaf)
 
     def _split(self, node : LeafData, orig_id : int, block_list : DataList, index : int) :
-        left_data = node[:_NODE_FANOUT//2]
-        right_data = node[_NODE_FANOUT//2:]
+
+        # Calculate where to split the block.
+        # Prefer to split it down the middle, but if
+        # there are multiple entries with the same key,
+        # we need to make sure all the entries with the same key
+        # are in the same block.
+        split_point = _NODE_FANOUT//2
+        split_key = node[split_point][0]
+        left_offset = 0
+        while True:
+            if split_point - left_offset < 0 :
+                break
+            if node[split_point - left_offset][0] < split_key :
+                left_offset -= 1
+                break
+            left_offset += 1
+
+        right_offset = 0
+        while True:
+            if split_point + right_offset >= len(node) :
+                break
+            if node[split_point + right_offset][0] > split_key :
+                break
+            right_offset += 1
+        
+        print(f"left_offset = {left_offset}, right_offset = {right_offset}")
+        if left_offset < right_offset :
+            new_split_point = split_point - left_offset
+            if new_split_point <= 0 :
+                if split_point + right_offset >= len(node) :
+                    # The block is full of the same key.
+                    # So split down the middle.
+                    new_split_point = split_point
+                else :
+                    new_split_point = split_point + right_offset
+        else :
+            new_split_point = split_point + right_offset
+            if new_split_point >= len(node) :
+                if split_point - left_offset < 0 :
+                    # The block is full of the same key.
+                    # So split down the middle.
+                    new_split_point = split_point
+                else :
+                    new_split_point = split_point - left_offset
+            
+        split_point = new_split_point
+        print(f"split_point = {split_point}")
+        left_data = node[:split_point]
+        right_data = node[split_point:]
+        print(f"left_data = {left_data}")
+        print(f"right_data = {right_data}")
+
         self._write_node(orig_id, left_data)
         right_id = self.db_ctx.generate_id()
         self._write_node(right_id, right_data)
@@ -165,9 +224,15 @@ class Index :
         self._update_block_list(block_list)
 
     def test_for_insert(self, record : Any) -> Tuple[bool, str] :
+        if not self.nullable :
+            key = getattr(record, self.column)
+            if key is None :
+                return False, f"Null key in non-nullable index {self.index_name}"
+
         if not self.unique :
             return (True, "")
-
+        
+        # check for duplicate key
         key = getattr(record, self.column)
 
         leaf_id, i = self._find_block(key)

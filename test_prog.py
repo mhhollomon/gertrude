@@ -26,11 +26,22 @@ table.insert({"name" : "mark", "age" : 62})
 table.insert({"name" : "martha", "age" : 32})
 table.insert({"name" : "eli", "age" : 20})
 table.insert({"name" : "rebecca", "age" : 26})
+try :
+    table.insert({"name" : None, "age" : 16})
+except ValueError as e :
+    print(e)
 
 # Test building an index after the fact.
 table.add_index("age_index", "age")
 
 table.insert({"name" : "sam", "age" : 18})
+table.insert({"name" : "joe", "age" : 18})
+table.insert({"name" : "fred", "age" : 18})
+table.insert({"name" : "tina", "age" : 18})
+table.insert({"name" : "velma", "age" : 18})
+table.insert({"name" : "jackie", "age" : 18})
+
+table.insert({"name" : "ben", "age" : 19})
 
 print("Scan:")
 for record in table.scan() :

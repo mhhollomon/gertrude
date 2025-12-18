@@ -9,6 +9,7 @@ class CacheStats:
     hits : int
     misses : int
     evictions : int
+    blocks : int
 
 class LRUCache :
     """
@@ -19,7 +20,7 @@ class LRUCache :
         self.max_size = max_size
         self.cache : OrderedDict[CacheKey, bytes] = OrderedDict()
         self.paths : dict[int, Path] = {}
-        self.stats = CacheStats(0, 0, 0)
+        self.stats = CacheStats(0, 0, 0, 0)
 
     def register(self, key, path : Path) :
         self.paths[key] = path
@@ -40,6 +41,7 @@ class LRUCache :
             if len(self.cache) > self.max_size :
                 self.stats.evictions += 1
                 self.cache.popitem(last=False)
+            self.stats.blocks = len(self.cache)
             return data
 
     def lookup(self, index : int, block_id : int) -> bytes | None :
@@ -66,6 +68,8 @@ class LRUCache :
                     self.cache.popitem(last=False)
         elif (index, block_id) in self.cache :
             del self.cache[(index, block_id)]
+
+        self.stats.blocks = len(self.cache)
 
         with open(self.paths[index] / f"{block_id:03}", "wb") as f :
             f.write(data)

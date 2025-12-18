@@ -13,7 +13,8 @@ from .cache import LRUCache
 
 _OPTIONS = {
     "pk" : bool,
-    "unique" : bool
+    "unique" : bool,
+    "nullable" : bool,
 }
 
 
