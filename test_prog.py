@@ -43,6 +43,9 @@ table.insert({"name" : "jackie", "age" : 18})
 
 table.insert({"name" : "ben", "age" : 19})
 
+# Test inserting a null into a nullable field with index
+table.insert({"name" : "jim", "age" : None})
+
 print("Scan:")
 for record in table.scan() :
     print(f"{record.name} is {record.age} years old.")

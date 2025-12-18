@@ -8,10 +8,12 @@ from .globals import _generate_id, TYPES, DBContext
 
 _NODE_FANOUT : int = 6
 
+type KeyTuple = Tuple[bool, Any]
+
 # Used by the block list
-type DataList = List[Tuple[Any, int]]
+type DataList = List[Tuple[KeyTuple, int]]
 # use by leaf nodes
-type LeafData = List[Tuple[Any, str]]
+type LeafData = List[Tuple[KeyTuple, str]]
 
 
 def _read_block_list(path : Path) -> DataList:
@@ -54,6 +56,12 @@ class Index :
             msgpack.dump(block_list, f)
 
 
+    def _gen_key_tuple(self, key : Any) -> KeyTuple :
+        if key is None :
+            return (True, None)
+        else :
+            return (False, key)
+        
     def _create(self, iterator) :
         if self.path.exists() :
             raise ValueError(f"Index {self.index_name} directory already exists.")
@@ -81,7 +89,6 @@ class Index :
         for record in iterator() :
             (heap_id, data) = record
             key = getattr(data, self.column)
-            records.append((key, heap_id))
 
             if self.unique :
                 if key in keyset :
@@ -91,6 +98,8 @@ class Index :
             if not self.nullable :
                 if key is None :
                     raise ValueError(f"Null key in non-nullable index {self.index_name}")
+
+            records.append((self._gen_key_tuple(key), heap_id))
 
         block_list = []
         records.sort(key=lambda x : x[0])
@@ -129,7 +138,7 @@ class Index :
         # the given key.
         # index=0 is for those keys that are strictly less than
         # the first key.
-        i = bisect_left(block_list, key, lo=1, key=lambda x : x[0])
+        i = bisect_left(block_list, key, lo=1, key=lambda x : tuple(x[0]))
         print(f"raw i = {i}")
         # if the index is 1, it is either because we need to
         # look at the block at index 1 or we need to look at
@@ -139,9 +148,9 @@ class Index :
             # we need to look at the block at index 0.
             # If the given key is less that the key at index 1,
             # then we need to look at the block at index 0.
-            if i == len(block_list) or block_list[i][0] > key :
+            if i == len(block_list) or tuple(block_list[i][0]) > key :
                 i = 0
-        elif i == len(block_list) or block_list[i][0] > key :
+        elif i == len(block_list) or tuple(block_list[i][0]) > key :
             i -= 1
         print(f"final i = {i}")
         leaf_id = block_list[i][1]
@@ -150,11 +159,11 @@ class Index :
 
     def _insert(self, obj : Any, heap_id : str) :
 
-        key = getattr(obj, self.column)
+        key = self._gen_key_tuple(getattr(obj, self.column))
         leaf_id, i = self._find_block(key)
 
         leaf = self._read_node(leaf_id)
-        insort(leaf, (key, heap_id), key=lambda x : x[0])
+        insort(leaf, (key, heap_id), key=lambda x : tuple(x[0]))
 
         if len(leaf) >= _NODE_FANOUT :
             block_list = self._get_block_list()
@@ -169,12 +178,12 @@ class Index :
         # we need to make sure all the entries with the same key
         # are in the same block.
         split_point = _NODE_FANOUT//2
-        split_key = node[split_point][0]
+        split_key = tuple(node[split_point][0])
         left_offset = 0
         while True:
             if split_point - left_offset < 0 :
                 break
-            if node[split_point - left_offset][0] < split_key :
+            if tuple(node[split_point - left_offset][0]) < split_key :
                 left_offset -= 1
                 break
             left_offset += 1
@@ -183,7 +192,7 @@ class Index :
         while True:
             if split_point + right_offset >= len(node) :
                 break
-            if node[split_point + right_offset][0] > split_key :
+            if tuple(node[split_point + right_offset][0]) > split_key :
                 break
             right_offset += 1
         
@@ -239,11 +248,11 @@ class Index :
             return (True, "")
         
         # check for duplicate key
-        key = getattr(record, self.column)
+        key = self._gen_key_tuple(getattr(record, self.column))
 
         leaf_id, i = self._find_block(key)
         leaf = self._read_node(leaf_id)
-        i = bisect_left(leaf, key, key=lambda x : x[0])
+        i = bisect_left(leaf, key, key=lambda x : tuple(x[0]))
 
         if i < len(leaf) and leaf[i][0] == key :
             return False, f"Duplicate key in column '{self.column}' for index {self.index_name}"
