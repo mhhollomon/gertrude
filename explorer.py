@@ -8,7 +8,7 @@ from typing import cast
 import msgpack
 
 from gertrude.table import FieldSpec
-from gertrude.index import _NODE_TYPE_LEAF, DataList, Index, InternalNode, LeafNode
+from gertrude.index import _NODE_TYPE_LEAF, InternalNode, LeafNode
 
 class Explorer:
     def __init__(self, db_path : Path) :
