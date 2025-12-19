@@ -16,6 +16,12 @@ type DataList = List[Tuple[KeyTuple, int]]
 # use by leaf nodes
 type LeafData = List[Tuple[KeyTuple, str]]
 
+# List of tuple (block_id, index)
+# zeroth entry will always be (0, -10)
+# Middle entries will always be (internal_block_id, index_into_parent)
+# The last entry will always be (leaf_block_id, index_into_parent)
+type TreePath = List[Tuple[int, int]]
+
 @dataclass
 class LeafNode :
     k : str        # node type
@@ -53,6 +59,7 @@ class Index :
         self.nullable = nullable
 
         # We'll fix this later
+        # see _create or _load
         self.id : int= 0
 
 
@@ -157,11 +164,27 @@ class Index :
 
         index.id = config["id"]
         db_ctx.cache.register(index.id, path)
-
         return index
-    def _find_block(self, key : Any, parent : Optional[InternalNode] = None) -> List[Tuple[int, int]] :
+        
+    def _find_key_in_leaf(self, key : Any, leaf : LeafNode) -> Tuple[bool, int] :
+        """Check if a key is in a leaf node. If so, return the index.
+        """
+
+        i = bisect_left(leaf.d, key, key=lambda x : tuple(x[0]))
+        if i < len(leaf.d) and leaf.d[i][0] == key :
+            return True, i
+        else :
+            return False, -1
+    
+    def _find_block(self, key : KeyTuple, parent : Optional[InternalNode] = None) -> TreePath :
+        """Returns the path to the leaf node where the key might be stored.
+        Each entry in the list is a tuple (block_id, index).
+        """
+
+        retval : TreePath = []
         if parent is None :
             parent = self._read_root()
+            retval += [(0, -10)]
         print(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
@@ -188,32 +211,42 @@ class Index :
         print(f"final i = {i}")
         leaf_id = parent.d[i][1]
 
-        retval = [(leaf_id, i)]
+        retval += [(leaf_id, i)]
 
 
         maybe_leaf = self._read_node(leaf_id)
         if maybe_leaf.k == _NODE_TYPE_INTERNAL :
             maybe_leaf = cast(InternalNode, maybe_leaf)
-            return retval +self._find_block(key, maybe_leaf)
+            return retval + self._find_block(key, maybe_leaf)
 
+        print(f"_find_block returning {retval}")
         return retval
 
     def _insert(self, obj : Any, heap_id : str) :
 
-        key = self._gen_key_tuple(getattr(obj, self.column))
-        leaf_id, i = self._find_block(key)[-1]
+        key : KeyTuple= self._gen_key_tuple(getattr(obj, self.column))
+
+        # In theory, this is not needed since check_for_insert
+        # should have been called. But its cheap, so why not.
+        if not self.nullable and key[0] :
+            raise ValueError(f"Null key in non-nullable index {self.index_name}")
+        
+        tree_path = self._find_block(key)
+        
+        leaf_id, parent_index = tree_path[-1]
+        parent_id, parent_parent_index = tree_path[-2]
 
         leaf = self._read_node(leaf_id)
         if leaf.k == _NODE_TYPE_LEAF :
             leaf = cast(LeafNode, leaf)
         else :
-            raise ValueError(f"Invalid node type {leaf.k}")
+            raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")
 
         insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
 
         if len(leaf.d) >= _NODE_FANOUT :
             root = self._read_root()
-            self._split(leaf, root, i)
+            self._split_leaf(leaf, parent_index, tree_path[:-1])
         else :
             self._write_node(leaf_id, leaf)
 
@@ -264,9 +297,16 @@ class Index :
 
         return new_split_point
 
-    def _split(self, node : LeafNode, root : InternalNode, index : int) :
+    def _split_leaf(self, node : LeafNode,  parent_index : int, tree_path : TreePath) :
 
-        print(f"--- splitting {node.n} at root index {index}")
+        parent_id, parent_parent_index = tree_path[-1]
+        parent = self._read_node(parent_id)
+        if parent.k == _NODE_TYPE_INTERNAL :
+            parent = cast(InternalNode, parent)
+        else :
+            raise ValueError(f"Invalid node type {parent.k} for internal node {parent_id}")
+
+        print(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
 
         split_point = self._pick_split_point(node)
         print(f"split_point = {split_point}")
@@ -280,27 +320,31 @@ class Index :
         right_id = self.db_ctx.generate_id()
         self._write_node(right_id, _make_leaf(right_id, right_data))
 
-        root.d.insert(index+1, (right_data[0][0], right_id))
+        parent.d.insert(parent_index+1, (right_data[0][0], right_id))
 
-        self._write_node(root.n, root)
+        self._write_node(parent.n, parent)
 
     def test_for_insert(self, record : Any) -> Tuple[bool, str] :
+        """Method to check if the record meets the index constraints.
+        This must be called before _insert() on the record.
+        """
+        raw_key = getattr(record, self.column)
         if not self.nullable :
-            key = getattr(record, self.column)
-            if key is None :
+            if raw_key is None :
                 return False, f"Null key in non-nullable index {self.index_name}"
 
         if not self.unique :
             return (True, "")
 
         # check for duplicate key
-        key = self._gen_key_tuple(getattr(record, self.column))
+        key = self._gen_key_tuple(raw_key)
 
         leaf_id, i = self._find_block(key)[-1]
         leaf = self._read_node(leaf_id)
-        i = bisect_left(leaf.d, key, key=lambda x : tuple(x[0]))
 
-        if i < len(leaf.d) and leaf.d[i][0] == key :
-            return False, f"Duplicate key in column '{self.column}' for index {self.index_name}"
+        test = self._find_key_in_leaf(key, cast( LeafNode, leaf))
+
+        if test[0] :
+            return False, f"Duplicate key '{raw_key}' in unique index {self.index_name}"
 
         return True, ""
