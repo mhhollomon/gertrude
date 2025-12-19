@@ -14,7 +14,7 @@ class Explorer:
     def __init__(self, db_path : Path) :
         self.db_path = db_path
 
-    def info(self, table_name : str | None = None, index_name : str | None = None) :
+    def info(self) :
 
         print(self.db_path)
         config = json.loads((self.db_path / "gertrude.conf").read_text())
