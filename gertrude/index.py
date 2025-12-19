@@ -3,7 +3,7 @@ from dataclasses import dataclass, asdict
 import json
 import msgpack
 from pathlib import Path
-from typing import Any, List, NamedTuple, Tuple, cast
+from typing import Any, List, NamedTuple, Optional, Tuple, cast
 
 from .globals import TYPES, DBContext
 
@@ -18,27 +18,25 @@ type LeafData = List[Tuple[KeyTuple, str]]
 
 @dataclass
 class LeafNode :
-    k : str
+    k : str        # node type
+    n : int        # node id
     d : LeafData
 
 _NODE_TYPE_LEAF = 'L'
 
 @dataclass
 class InternalNode :
-    k : str
+    k : str       # node type
+    n : int       # node id
     d : DataList
 
 _NODE_TYPE_INTERNAL = 'I'
 
-def _read_block_list(path : Path) -> DataList:
-    with open(path, "rb") as f :
-        return cast(DataList, msgpack.load(f))
+def _make_leaf(node_id : int, d : LeafData) :
+    return LeafNode(_NODE_TYPE_LEAF, node_id, d)
 
-def _make_leaf(d : LeafData) :
-    return LeafNode(_NODE_TYPE_LEAF, d)
-
-def _make_internal(d : DataList) :
-    return InternalNode(_NODE_TYPE_INTERNAL, d)
+def _make_internal(node_id : int, d : DataList) :
+    return InternalNode(_NODE_TYPE_INTERNAL, node_id, d)
 
 class Index :
     def __init__(self, index_name : str, path : Path,
@@ -129,15 +127,14 @@ class Index :
         while len(records) >= init_fanout :
             new_block_id = self.db_ctx.generate_id()
             root.append((records[0][0], new_block_id))
-            new_node = LeafNode(_NODE_TYPE_LEAF, records[:init_fanout])
+            new_node = _make_leaf(new_block_id, records[:init_fanout])
             self._write_node(new_block_id, new_node, cache=False)
             records = records[init_fanout:]
 
         if len(records) > 0 :
             new_block_id = self.db_ctx.generate_id()
             root.append((records[0][0], new_block_id))
-            new_node = LeafNode(_NODE_TYPE_LEAF, records)
-
+            new_node = _make_leaf(new_block_id, records)
             self._write_node(new_block_id, new_node, cache=False)
 
         if len(root) > 0 :
@@ -145,11 +142,11 @@ class Index :
         else :
             # create an empty block
             first_block_id = self.db_ctx.generate_id()
-            new_node = LeafNode(_NODE_TYPE_LEAF, [])
+            new_node = _make_leaf(first_block_id, [])
             self._write_node(first_block_id, new_node, cache=False)
             root.append((None, first_block_id))
 
-        self._write_node(0, _make_internal(root))
+        self._write_node(0, _make_internal(0, root))
 
     @classmethod
     def _load(cls, path : Path, db_ctx : DBContext) :
@@ -162,8 +159,9 @@ class Index :
         db_ctx.cache.register(index.id, path)
 
         return index
-    def _find_block(self, key : Any) -> Tuple[int, int] :
-        root = self._read_root()
+    def _find_block(self, key : Any, parent : Optional[InternalNode] = None) -> List[Tuple[int, int]] :
+        if parent is None :
+            parent = self._read_root()
         print(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
@@ -173,7 +171,7 @@ class Index :
         # the given key.
         # index=0 is for those keys that are strictly less than
         # the first key.
-        i = bisect_left(root.d, key, lo=1, key=lambda x : tuple(x[0]))
+        i = bisect_left(parent.d, key, lo=1, key=lambda x : tuple(x[0]))
         print(f"raw i = {i}")
         # if the index is 1, it is either because we need to
         # look at the block at index 1 or we need to look at
@@ -183,19 +181,27 @@ class Index :
             # we need to look at the block at index 0.
             # If the given key is less that the key at index 1,
             # then we need to look at the block at index 0.
-            if i == len(root.d) or tuple(root.d[i][0]) > key :
+            if i == len(parent.d) or tuple(parent.d[i][0]) > key :
                 i = 0
-        elif i == len(root.d) or tuple(root.d[i][0]) > key :
+        elif i == len(parent.d) or tuple(parent.d[i][0]) > key :
             i -= 1
         print(f"final i = {i}")
-        leaf_id = root.d[i][1]
+        leaf_id = parent.d[i][1]
 
-        return (leaf_id, i)
+        retval = [(leaf_id, i)]
+
+
+        maybe_leaf = self._read_node(leaf_id)
+        if maybe_leaf.k == _NODE_TYPE_INTERNAL :
+            maybe_leaf = cast(InternalNode, maybe_leaf)
+            return retval +self._find_block(key, maybe_leaf)
+
+        return retval
 
     def _insert(self, obj : Any, heap_id : str) :
 
         key = self._gen_key_tuple(getattr(obj, self.column))
-        leaf_id, i = self._find_block(key)
+        leaf_id, i = self._find_block(key)[-1]
 
         leaf = self._read_node(leaf_id)
         if leaf.k == _NODE_TYPE_LEAF :
@@ -207,7 +213,7 @@ class Index :
 
         if len(leaf.d) >= _NODE_FANOUT :
             root = self._read_root()
-            self._split(leaf, leaf_id, root, i)
+            self._split(leaf, root, i)
         else :
             self._write_node(leaf_id, leaf)
 
@@ -258,9 +264,9 @@ class Index :
 
         return new_split_point
 
-    def _split(self, node : LeafNode, orig_id : int, root : InternalNode, index : int) :
+    def _split(self, node : LeafNode, root : InternalNode, index : int) :
 
-        print(f"--- splitting {orig_id} at root index {index}")
+        print(f"--- splitting {node.n} at root index {index}")
 
         split_point = self._pick_split_point(node)
         print(f"split_point = {split_point}")
@@ -270,13 +276,13 @@ class Index :
         print(f"left_data = {left_data}")
         print(f"right_data = {right_data}")
 
-        self._write_node(orig_id, _make_leaf(left_data))
+        self._write_node(node.n, _make_leaf(node.n, left_data))
         right_id = self.db_ctx.generate_id()
-        self._write_node(right_id, _make_leaf(right_data))
+        self._write_node(right_id, _make_leaf(right_id, right_data))
 
         root.d.insert(index+1, (right_data[0][0], right_id))
 
-        self._write_node(0, root)
+        self._write_node(root.n, root)
 
     def test_for_insert(self, record : Any) -> Tuple[bool, str] :
         if not self.nullable :
@@ -290,7 +296,7 @@ class Index :
         # check for duplicate key
         key = self._gen_key_tuple(getattr(record, self.column))
 
-        leaf_id, i = self._find_block(key)
+        leaf_id, i = self._find_block(key)[-1]
         leaf = self._read_node(leaf_id)
         i = bisect_left(leaf.d, key, key=lambda x : tuple(x[0]))
 
