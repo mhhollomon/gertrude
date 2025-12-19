@@ -10,6 +10,8 @@ class CacheStats:
     misses : int
     evictions : int
     blocks : int
+    gets : int = 0
+    puts : int = 0
 
 class LRUCache :
     """
@@ -29,6 +31,8 @@ class LRUCache :
         if index not in self.paths :
             raise Exception(f"Index {index} not registered")
 
+        self.stats.gets += 1
+
         if (index, block_id) in self.cache :
             self.stats.hits += 1
             self.cache.move_to_end((index, block_id))
@@ -45,27 +49,35 @@ class LRUCache :
             return data
 
     def lookup(self, index : int, block_id : int) -> bytes | None :
+        if index not in self.paths :
+            raise Exception(f"Index {index} not registered")
+
+        self.stats.gets += 1
+
         if (index, block_id) in self.cache :
             self.stats.hits += 1
             self.cache.move_to_end((index, block_id))
             return self.cache[(index, block_id)]
 
+        self.stats.misses += 1
         return None
 
     def put(self, index : int, block_id : int, data : bytes, cache : bool = True) :
         if index not in self.paths :
             raise Exception(f"Index {index} not registered")
 
+        self.stats.puts += 1
+
         if cache :
             if (index, block_id) in self.cache :
                 self.stats.hits += 1
                 self.cache.move_to_end((index, block_id))
 
-            if cache :
-                self.cache[(index, block_id)] = data
-                if len(self.cache) > self.max_size :
-                    self.stats.evictions += 1
-                    self.cache.popitem(last=False)
+            self.cache[(index, block_id)] = data
+            if len(self.cache) > self.max_size :
+                self.stats.evictions += 1
+                self.cache.popitem(last=False)
+
         elif (index, block_id) in self.cache :
             del self.cache[(index, block_id)]
 
