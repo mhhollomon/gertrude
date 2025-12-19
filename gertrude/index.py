@@ -1,10 +1,11 @@
 from bisect import bisect_left, insort
+from dataclasses import dataclass, asdict
 import json
 import msgpack
 from pathlib import Path
 from typing import Any, List, NamedTuple, Tuple, cast
 
-from .globals import _generate_id, TYPES, DBContext
+from .globals import TYPES, DBContext
 
 _NODE_FANOUT : int = 6
 
@@ -15,10 +16,29 @@ type DataList = List[Tuple[KeyTuple, int]]
 # use by leaf nodes
 type LeafData = List[Tuple[KeyTuple, str]]
 
+@dataclass
+class LeafNode :
+    k : str
+    d : LeafData
+
+_NODE_TYPE_LEAF = 'L'
+
+@dataclass
+class InternalNode :
+    k : str
+    d : DataList
+
+_NODE_TYPE_INTERNAL = 'I'
 
 def _read_block_list(path : Path) -> DataList:
     with open(path, "rb") as f :
         return cast(DataList, msgpack.load(f))
+    
+def _make_leaf(d : LeafData) :
+    return LeafNode(_NODE_TYPE_LEAF, d)
+
+def _make_internal(d : DataList) :
+    return InternalNode(_NODE_TYPE_INTERNAL, d)
 
 class Index :
     def __init__(self, index_name : str, path : Path,
@@ -34,28 +54,27 @@ class Index :
         self.unique = unique
         self.nullable = nullable
 
-        # cache the block_list
-        self.block_list : DataList | None = None
+        # We'll fix this later
+        self.id : int= 0
 
-    def _get_block_list(self) :
-        if self.block_list is None :
-            self.block_list = _read_block_list(self.path / "block_list")
-        return self.block_list
 
-    def _write_node(self, node_id : int, node : LeafData, cache : bool = True) :
-        raw_data = cast(bytes, (msgpack.dumps(node)))
+
+    def _write_node(self, node_id : int, node : LeafNode | InternalNode, cache : bool = True) :
+        raw_data = cast(bytes, (msgpack.dumps(asdict(node))))
         self.db_ctx.cache.put(self.id, node_id, raw_data, cache=cache)
 
-    def _read_node(self, node_id : int) -> LeafData:
+    def _read_node(self, node_id : int) -> LeafNode | InternalNode:
         raw_data = self.db_ctx.cache.get(self.id, node_id)
-        return cast(LeafData, msgpack.loads(raw_data))
+        data = cast (dict, msgpack.loads(raw_data))
+        if raw_data[0] == _NODE_TYPE_LEAF :
+            return LeafNode(**data)
+        else :
+            return InternalNode(**data)
 
-    def _update_block_list(self, block_list : DataList) :
-        self.block_list = block_list
-        with open(self.path / "block_list", "wb") as f :
-            msgpack.dump(block_list, f)
 
-
+    def _read_root(self) -> InternalNode :
+        return cast(InternalNode, self._read_node(0))
+    
     def _gen_key_tuple(self, key : Any) -> KeyTuple :
         if key is None :
             return (True, None)
@@ -101,34 +120,38 @@ class Index :
 
             records.append((self._gen_key_tuple(key), heap_id))
 
-        block_list = []
+        root = []
         records.sort(key=lambda x : x[0])
 
         init_fanout = int(_NODE_FANOUT * 0.75)
 
         while len(records) >= init_fanout :
             new_block_id = self.db_ctx.generate_id()
-            block_list.append((records[0][0], new_block_id))
-            self._write_node(new_block_id, records[:init_fanout], cache=False)
+            root.append((records[0][0], new_block_id))
+            new_node = LeafNode(_NODE_TYPE_LEAF, records[:init_fanout])
+            self._write_node(new_block_id, new_node, cache=False)
             records = records[init_fanout:]
 
         if len(records) > 0 :
             new_block_id = self.db_ctx.generate_id()
-            block_list.append((records[0][0], new_block_id))
-            self._write_node(new_block_id, records, cache=False)
+            root.append((records[0][0], new_block_id))
+            new_node = LeafNode(_NODE_TYPE_LEAF, records)
 
-        if len(block_list) > 0 :
-            block_list[0] = (None, block_list[0][1])
+            self._write_node(new_block_id, new_node, cache=False)
+
+        if len(root) > 0 :
+            root[0] = (None, root[0][1])
         else :
             # create an empty block
             first_block_id = self.db_ctx.generate_id()
-            self._write_node(first_block_id, [], cache=False)
-            block_list.append((None, first_block_id))
+            new_node = LeafNode(_NODE_TYPE_LEAF, [])
+            self._write_node(first_block_id, new_node, cache=False)
+            root.append((None, first_block_id))
 
-        self._update_block_list(block_list)
+        self._write_node(0, _make_internal(root))
 
     def _find_block(self, key : Any) -> Tuple[int, int] :
-        block_list = self._get_block_list()
+        root = self._read_root()
         print(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
@@ -138,7 +161,7 @@ class Index :
         # the given key.
         # index=0 is for those keys that are strictly less than
         # the first key.
-        i = bisect_left(block_list, key, lo=1, key=lambda x : tuple(x[0]))
+        i = bisect_left(root.d, key, lo=1, key=lambda x : tuple(x[0]))
         print(f"raw i = {i}")
         # if the index is 1, it is either because we need to
         # look at the block at index 1 or we need to look at
@@ -148,12 +171,12 @@ class Index :
             # we need to look at the block at index 0.
             # If the given key is less that the key at index 1,
             # then we need to look at the block at index 0.
-            if i == len(block_list) or tuple(block_list[i][0]) > key :
+            if i == len(root.d) or tuple(root.d[i][0]) > key :
                 i = 0
-        elif i == len(block_list) or tuple(block_list[i][0]) > key :
+        elif i == len(root.d) or tuple(root.d[i][0]) > key :
             i -= 1
         print(f"final i = {i}")
-        leaf_id = block_list[i][1]
+        leaf_id = root.d[i][1]
 
         return (leaf_id, i)
 
@@ -163,36 +186,41 @@ class Index :
         leaf_id, i = self._find_block(key)
 
         leaf = self._read_node(leaf_id)
-        insort(leaf, (key, heap_id), key=lambda x : tuple(x[0]))
+        if leaf.k == _NODE_TYPE_LEAF :
+            leaf = cast(LeafNode, leaf)
+        else :
+            raise ValueError(f"Invalid node type {leaf.k}")
+        
+        insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
 
-        if len(leaf) >= _NODE_FANOUT :
-            block_list = self._get_block_list()
-            self._split(leaf, leaf_id, block_list, i)
+        if len(leaf.d) >= _NODE_FANOUT :
+            root = self._read_root()
+            self._split(leaf, leaf_id, root, i)
         else :
             self._write_node(leaf_id, leaf)
 
-    def _pick_split_point(self, node : LeafData) :
+    def _pick_split_point(self, node : LeafNode) :
         # Calculate where to split the block.
         # Prefer to split it down the middle, but if
         # there are multiple entries with the same key,
         # we need to make sure all the entries with the same key
         # are in the same block.
         split_point = _NODE_FANOUT//2
-        split_key = tuple(node[split_point][0])
+        split_key = tuple(node.d[split_point][0])
         left_offset = 0
         while True:
             if split_point - left_offset < 0 :
                 break
-            if tuple(node[split_point - left_offset][0]) < split_key :
+            if tuple(node.d[split_point - left_offset][0]) < split_key :
                 left_offset -= 1
                 break
             left_offset += 1
 
         right_offset = 0
         while True:
-            if split_point + right_offset >= len(node) :
+            if split_point + right_offset >= len(node.d) :
                 break
-            if tuple(node[split_point + right_offset][0]) > split_key :
+            if tuple(node.d[split_point + right_offset][0]) > split_key :
                 break
             right_offset += 1
         
@@ -200,7 +228,7 @@ class Index :
         if left_offset < right_offset :
             new_split_point = split_point - left_offset
             if new_split_point <= 0 :
-                if split_point + right_offset >= len(node) :
+                if split_point + right_offset >= len(node.d) :
                     # The block is full of the same key.
                     # So split down the middle.
                     new_split_point = split_point
@@ -208,7 +236,7 @@ class Index :
                     new_split_point = split_point + right_offset
         else :
             new_split_point = split_point + right_offset
-            if new_split_point >= len(node) :
+            if new_split_point >= len(node.d) :
                 if split_point - left_offset < 0 :
                     # The block is full of the same key.
                     # So split down the middle.
@@ -218,25 +246,25 @@ class Index :
 
         return new_split_point
 
-    def _split(self, node : LeafData, orig_id : int, block_list : DataList, index : int) :
+    def _split(self, node : LeafNode, orig_id : int, root : InternalNode, index : int) :
 
-        print(f"--- splitting {orig_id} at block_list index {index}")
+        print(f"--- splitting {orig_id} at root index {index}")
             
         split_point = self._pick_split_point(node)
         print(f"split_point = {split_point}")
 
-        left_data = node[:split_point]
-        right_data = node[split_point:]
+        left_data = node.d[:split_point]
+        right_data = node.d[split_point:]
         print(f"left_data = {left_data}")
         print(f"right_data = {right_data}")
 
-        self._write_node(orig_id, left_data)
+        self._write_node(orig_id, _make_leaf(left_data))
         right_id = self.db_ctx.generate_id()
-        self._write_node(right_id, right_data)
+        self._write_node(right_id, _make_leaf(right_data))
 
-        block_list.insert(index+1, (right_data[0][0], right_id))
+        root.d.insert(index+1, (right_data[0][0], right_id))
 
-        self._update_block_list(block_list)
+        self._write_node(0, root)
 
     def test_for_insert(self, record : Any) -> Tuple[bool, str] :
         if not self.nullable :
@@ -252,9 +280,9 @@ class Index :
 
         leaf_id, i = self._find_block(key)
         leaf = self._read_node(leaf_id)
-        i = bisect_left(leaf, key, key=lambda x : tuple(x[0]))
+        i = bisect_left(leaf.d, key, key=lambda x : tuple(x[0]))
 
-        if i < len(leaf) and leaf[i][0] == key :
+        if i < len(leaf.d) and leaf.d[i][0] == key :
             return False, f"Duplicate key in column '{self.column}' for index {self.index_name}"
 
         return True, ""

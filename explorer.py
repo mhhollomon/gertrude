@@ -7,7 +7,7 @@ from typing import cast
 import msgpack
 
 from gertrude.table import FieldSpec
-from gertrude.index import DataList
+from gertrude.index import DataList, Index, InternalNode, LeafNode
 
 class Explorer:
     def __init__(self, db_path : Path) :
@@ -65,22 +65,23 @@ class Explorer:
         config = json.loads((index / "config").read_text())
         print(f"config = {config}")
 
-        root_path = index / "block_list"
+        root_path = index / "000"
         block_list = []
-        print("block_list:")
+        print("root:")
         with open(root_path, "rb") as f :
-            data = cast(DataList, msgpack.unpackb(f.read()))
-            for (key, block_id) in data :
+            node = InternalNode(**cast(dict, msgpack.unpackb(f.read())))
+            for (key, block_id) in node.d :
                 print(f"  {key} -> {block_id}")
                 block_list.append(block_id)
 
         print("blocks:")
         for block_id in block_list :
             block_path = index / f"{block_id:03}"
-            print(f"  {block_path}")
             with open(block_path, "rb") as f :
-                data = cast(DataList, msgpack.unpackb(f.read()))
-                for (key, heap_id) in data :
+                raw_data = msgpack.unpackb(f.read())
+                node = LeafNode(**(cast (dict, raw_data)))
+                print(f"  {block_path} ({node.k})")
+                for (key, heap_id) in node.d :
                     print(f"    {key} -> {heap_id}")
 
 if __name__ == "__main__":
