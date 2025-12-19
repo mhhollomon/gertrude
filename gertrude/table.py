@@ -175,3 +175,6 @@ class Table :
     def scan(self) :
         for record in self._data_iter() :
             yield record[1]
+
+    def print_index(self, name : str) :
+        self.index[name].print_tree()

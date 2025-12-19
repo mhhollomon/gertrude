@@ -17,10 +17,12 @@ type DataList = List[Tuple[KeyTuple, int]]
 type LeafData = List[Tuple[KeyTuple, str]]
 
 # List of tuple (block_id, index)
-# zeroth entry will always be (0, -10)
+# zeroth entry will always be (0, _INVALID_INDEX)
 # Middle entries will always be (internal_block_id, index_into_parent)
 # The last entry will always be (leaf_block_id, index_into_parent)
 type TreePath = List[Tuple[int, int]]
+
+_INVALID_INDEX = -10
 
 @dataclass
 class LeafNode :
@@ -145,15 +147,16 @@ class Index :
             self._write_node(new_block_id, new_node, cache=False)
 
         if len(root) > 0 :
-            root[0] = (None, root[0][1])
+            root[0] = (self._gen_key_tuple(None), root[0][1])
         else :
             # create an empty block
             first_block_id = self.db_ctx.generate_id()
             new_node = _make_leaf(first_block_id, [])
             self._write_node(first_block_id, new_node, cache=False)
-            root.append((None, first_block_id))
+            root.append((self._gen_key_tuple(None), first_block_id))
 
         self._write_node(0, _make_internal(0, root))
+        #self.print_tree()
 
     @classmethod
     def _load(cls, path : Path, db_ctx : DBContext) :
@@ -166,12 +169,13 @@ class Index :
         db_ctx.cache.register(index.id, path)
         return index
         
-    def _find_key_in_leaf(self, key : Any, leaf : LeafNode) -> Tuple[bool, int] :
+    def _find_key_in_leaf(self, key : KeyTuple, leaf : LeafNode) -> Tuple[bool, int] :
         """Check if a key is in a leaf node. If so, return the index.
         """
 
         i = bisect_left(leaf.d, key, key=lambda x : tuple(x[0]))
-        if i < len(leaf.d) and leaf.d[i][0] == key :
+        print(f"_find_key_in_leaf: i = {i}")
+        if i < len(leaf.d) and tuple(leaf.d[i][0]) == key :
             return True, i
         else :
             return False, -1
@@ -184,7 +188,7 @@ class Index :
         retval : TreePath = []
         if parent is None :
             parent = self._read_root()
-            retval += [(0, -10)]
+            retval += [(0, _INVALID_INDEX)]
         print(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
@@ -223,8 +227,8 @@ class Index :
         return retval
 
     def _insert(self, obj : Any, heap_id : str) :
-
         key : KeyTuple= self._gen_key_tuple(getattr(obj, self.column))
+        print(f"--- Inserting {key} into index {self.index_name}")
 
         # In theory, this is not needed since check_for_insert
         # should have been called. But its cheap, so why not.
@@ -245,12 +249,13 @@ class Index :
         insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
 
         if len(leaf.d) >= _NODE_FANOUT :
-            root = self._read_root()
             self._split_leaf(leaf, parent_index, tree_path[:-1])
         else :
             self._write_node(leaf_id, leaf)
 
-    def _pick_split_point(self, node : LeafNode) :
+        #self.print_tree()
+
+    def _pick_split_point(self, node : LeafNode | InternalNode) -> int :
         # Calculate where to split the block.
         # Prefer to split it down the middle, but if
         # there are multiple entries with the same key,
@@ -322,29 +327,111 @@ class Index :
 
         parent.d.insert(parent_index+1, (right_data[0][0], right_id))
 
-        self._write_node(parent.n, parent)
+        if len(parent.d) >= _NODE_FANOUT :
+            self._split_internal(parent, parent_parent_index, tree_path[:-1])
+        else :
+            self._write_node(parent.n, parent)
+
+        #self.print_tree()
+
+    def _split_internal(self, node : InternalNode, parent_index : int, tree_path : TreePath) :
+
+        splitting_root : bool = (node.n == 0)
+        if (parent_index == _INVALID_INDEX) :
+            parent_id = 0
+            parent_parent_index = _INVALID_INDEX
+        else :
+            parent_id, parent_parent_index = tree_path[-1]
+        parent = self._read_node(parent_id)
+        if parent.k == _NODE_TYPE_INTERNAL :
+            parent = cast(InternalNode, parent)
+        else :
+            raise ValueError(f"Invalid node type {parent.k} for internal node {parent_id}")
+
+        print(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
+
+        split_point = self._pick_split_point(node)
+        print(f"split_point = {split_point}")
+
+        left_data = node.d[:split_point]
+        right_data = node.d[split_point:]
+        print(f"left_data = {left_data}")
+        print(f"right_data = {right_data}")
+
+        if splitting_root :
+            left_id = self.db_ctx.generate_id()
+            right_id = self.db_ctx.generate_id()
+            new_root = _make_internal(0, [])
+            new_root.d.append((self._gen_key_tuple(None), left_id))
+            new_root.d.append((right_data[0][0], right_id))
+            right_data[0] = (self._gen_key_tuple(None), right_data[0][1])
+            self._write_node(left_id, _make_internal(left_id, left_data))
+            self._write_node(right_id, _make_internal(right_id, right_data))
+            self._write_node(0, new_root)
+
+        else :
+
+            right_id = self.db_ctx.generate_id()
+            parent.d.insert(parent_index+1, (right_data[0][0], right_id))
+            right_data[0] = (self._gen_key_tuple(None), right_data[0][1])
+            self._write_node(node.n, _make_internal(node.n, left_data))
+            self._write_node(right_id, _make_internal(right_id, right_data))
+
+            if len(parent.d) >= _NODE_FANOUT :
+                self._split_internal(parent, parent_parent_index, tree_path[:-1])
+            else :
+                self._write_node(parent.n, parent)
 
     def test_for_insert(self, record : Any) -> Tuple[bool, str] :
         """Method to check if the record meets the index constraints.
         This must be called before _insert() on the record.
         """
         raw_key = getattr(record, self.column)
+        print(f"---- Testing key {raw_key} for index {self.index_name}")
+
         if not self.nullable :
             if raw_key is None :
+                print(f"--- Null key in non-nullable index {self.index_name}")
                 return False, f"Null key in non-nullable index {self.index_name}"
 
         if not self.unique :
+            print(f"--- Non-unique index {self.index_name}")
             return (True, "")
 
         # check for duplicate key
         key = self._gen_key_tuple(raw_key)
 
         leaf_id, i = self._find_block(key)[-1]
+        print(f"--- leaf_id = {leaf_id}, i = {i}")
         leaf = self._read_node(leaf_id)
 
         test = self._find_key_in_leaf(key, cast( LeafNode, leaf))
+        print(f"--- test = {test}")
 
         if test[0] :
+            print(f"--- Duplicate key '{raw_key}' in unique index {self.index_name}")
             return False, f"Duplicate key '{raw_key}' in unique index {self.index_name}"
 
+        print("--- OK")
         return True, ""
+    
+
+    def print_tree(self) :
+        print(f"=== {self.index_name} Tree:")
+        self._print_tree(0, '')
+        print("=== End of tree")
+
+    def _print_tree(self, node_id : int, prefix : str) :
+        node = self._read_node(node_id)
+        print(f"{prefix}{node.n} {node.k} :")
+        prefix = prefix + '  '
+
+        if node.k == _NODE_TYPE_INTERNAL :
+            node = cast(InternalNode, node)
+            for n in node.d :
+                print(f"{prefix}{n[0]} -> {n[1]}")
+                self._print_tree(n[1], prefix + ' ')
+        else :
+            node = cast(LeafNode, node)
+            for n in node.d :
+                print(f"{prefix}{n[0]} -> {n[1]}")

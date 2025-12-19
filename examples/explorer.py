@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+
+import sys
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+module_dir = os.path.join(script_dir, '..')
+sys.path.insert(0, module_dir)
+
 from argparse import ArgumentParser
 from collections import deque
 import json
