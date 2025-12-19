@@ -105,7 +105,9 @@ class Table :
 
         self.record = self._generate_tuple_type()
 
-        # TODO : load indexes
+        index_path = self.db_path / "index"
+        for index in index_path.glob("*") :
+            Index._load(index, self.db_ctx)
 
     def _data_iter(self) :
         if not self.open :

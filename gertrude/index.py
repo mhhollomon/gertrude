@@ -33,7 +33,7 @@ _NODE_TYPE_INTERNAL = 'I'
 def _read_block_list(path : Path) -> DataList:
     with open(path, "rb") as f :
         return cast(DataList, msgpack.load(f))
-    
+
 def _make_leaf(d : LeafData) :
     return LeafNode(_NODE_TYPE_LEAF, d)
 
@@ -42,7 +42,7 @@ def _make_internal(d : DataList) :
 
 class Index :
     def __init__(self, index_name : str, path : Path,
-                 column : str, coltype : str, db_ctx : DBContext, *, 
+                 column : str, coltype : str, db_ctx : DBContext, *,
                  unique : bool = False, nullable : bool = True) :
         self.index_name = index_name
         self.column = column
@@ -74,13 +74,13 @@ class Index :
 
     def _read_root(self) -> InternalNode :
         return cast(InternalNode, self._read_node(0))
-    
+
     def _gen_key_tuple(self, key : Any) -> KeyTuple :
         if key is None :
             return (True, None)
         else :
             return (False, key)
-        
+
     def _create(self, iterator) :
         if self.path.exists() :
             raise ValueError(f"Index {self.index_name} directory already exists.")
@@ -90,6 +90,7 @@ class Index :
         self.id = self.db_ctx.generate_id()
 
         config = {
+            "name" : self.index_name,
             "column" : self.column,
             "coltype" : self.coltype,
             "id" : self.id,
@@ -150,6 +151,17 @@ class Index :
 
         self._write_node(0, _make_internal(root))
 
+    @classmethod
+    def _load(cls, path : Path, db_ctx : DBContext) :
+        config = json.loads((path / "config").read_text())
+
+        index = Index(config["name"], path, config["column"], config["coltype"],
+                      db_ctx, unique=config["unique"], nullable=config["nullable"])
+
+        index.id = config["id"]
+        db_ctx.cache.register(index.id, path)
+
+        return index
     def _find_block(self, key : Any) -> Tuple[int, int] :
         root = self._read_root()
         print(f"Finding block for key = '{key}'")
@@ -190,7 +202,7 @@ class Index :
             leaf = cast(LeafNode, leaf)
         else :
             raise ValueError(f"Invalid node type {leaf.k}")
-        
+
         insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
 
         if len(leaf.d) >= _NODE_FANOUT :
@@ -223,7 +235,7 @@ class Index :
             if tuple(node.d[split_point + right_offset][0]) > split_key :
                 break
             right_offset += 1
-        
+
         print(f"left_offset = {left_offset}, right_offset = {right_offset}")
         if left_offset < right_offset :
             new_split_point = split_point - left_offset
@@ -249,7 +261,7 @@ class Index :
     def _split(self, node : LeafNode, orig_id : int, root : InternalNode, index : int) :
 
         print(f"--- splitting {orig_id} at root index {index}")
-            
+
         split_point = self._pick_split_point(node)
         print(f"split_point = {split_point}")
 
@@ -274,7 +286,7 @@ class Index :
 
         if not self.unique :
             return (True, "")
-        
+
         # check for duplicate key
         key = self._gen_key_tuple(getattr(record, self.column))
 
