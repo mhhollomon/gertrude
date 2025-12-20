@@ -8,18 +8,17 @@ sys.path.insert(0, module_dir)
 
 from pathlib import Path
 import shutil
-from time import sleep
-import gertrude
+from gertrude import  Database, cspec
 
 db_path = Path("./output")
 if db_path.exists() :
     shutil.rmtree(db_path)
 
-db = gertrude.Database(Path("./output"))
+db = Database.create(Path("./output"))
 
 table = db.create_table("test", [
-    gertrude.FieldSpec("name", 'str', {'pk' :True}),
-    gertrude.FieldSpec("age", 'int', {}),
+    cspec("name", 'str', pk=True),
+    cspec("age", 'int'),
 ])
 
 table.insert({"name" : "bob", "age" : 12})

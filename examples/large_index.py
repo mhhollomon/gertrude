@@ -16,7 +16,7 @@ db_path = Path("./output")
 if db_path.exists() :
     shutil.rmtree(db_path)
 
-db = gertrude.Database(Path("./output"))
+db = gertrude.Database.create(Path("./output"))
 
 table = db.create_table("test", [
     gertrude.FieldSpec("num", 'int', {}),

@@ -7,6 +7,6 @@ from .globals import GERTRUDE_VERSION
 __version__ = GERTRUDE_VERSION
 
 from .database import Database
-from .table import FieldSpec
+from .table import FieldSpec, cspec
 
-__all__ = ["Database", "FieldSpec"]
+__all__ = ["Database", "FieldSpec", "cspec"]

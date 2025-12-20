@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Self
 from pathlib import Path
 import json
 
@@ -27,46 +27,29 @@ class Database :
         self.db_path = db_path
         self.table_defs = {}
         self.mode = mode
-        self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
-        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen, LRUCache(100))
+        self.comment = comment
 
-        need_setup = True
-        if not self.db_path.exists() :
-            if self.mode == "ro" :
-                raise ValueError(f"Database {self.db_path} does not exist.")
-
-            self.db_path.mkdir()
-        else :
-            assert self.db_path.is_dir()
-            conf_file = self.db_path / "gertrude.conf"
-
-            # if the directory is not empty the conf file better be there.
-            if len(list(self.db_path.glob("*"))) > 0:
-                if not conf_file.exists() :
-                    raise ValueError(f"Database {self.db_path} is not initialized.")
-                else :
-                    config = json.loads(conf_file.read_text())
-                    assert config["schema_version"] == CURRENT_SCHEMA_VERSION
-                    assert config["gertrude_version"] == GERTRUDE_VERSION
-                    self._load_table_defs()
-                    need_setup = False
-
-        if need_setup :
-            self._setup(comment)
 
     #################################################################
     # Internal utilities
     #################################################################
-    def _setup(self, comment : str) :
-            config = {
-                "schema_version" : CURRENT_SCHEMA_VERSION,
-                "gertrude_version" : GERTRUDE_VERSION,
-                "comment" : comment,
-            }
-            (self.db_path / "gertrude.conf").write_text(json.dumps(config))
-            (self.db_path / "tables").mkdir()
+    def _create(self) :
+        config = {
+            "schema_version" : CURRENT_SCHEMA_VERSION,
+            "gertrude_version" : GERTRUDE_VERSION,
+            "comment" : self.comment,
+        }
+        (self.db_path / "gertrude.conf").write_text(json.dumps(config))
+        (self.db_path / "tables").mkdir()
 
-    def _load_table_defs(self) :
+        self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
+        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen, LRUCache(100))
+
+
+    def _open(self) :
+        self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
+        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen, LRUCache(100))
+
         tables = self.db_path / "tables"
         if not tables.exists() :
             raise ValueError(f"Database {self.db_path} is not initialized.")
@@ -81,6 +64,38 @@ class Database :
     #################################################################
     # Public API
     #################################################################
+
+    @classmethod
+    def create(cls, db_path : Path, *, mode : str = "rw", comment : str = '') -> Self:
+
+        if db_path.exists() :
+            if len(list(db_path.glob("*"))) > 0 :
+                raise ValueError(f"Database {db_path} already exists and is not empty.")
+        else :
+            db_path.mkdir()
+
+        db = cls(db_path, mode = mode, comment = comment)
+        db._create()
+
+        return db
+
+    @classmethod
+    def open(cls, db_path : Path | str, *, mode : str = "rw") -> Self:
+        db_path = Path(db_path)
+
+        if not db_path.exists() :
+            raise ValueError(f"Database {db_path} does not exist.")
+        if not db_path.is_dir() :
+            raise ValueError(f"Database {db_path} is not a directory.")
+
+        config = json.loads((db_path / "gertrude.conf").read_text())
+        assert config["schema_version"] == CURRENT_SCHEMA_VERSION
+        assert config["gertrude_version"] == GERTRUDE_VERSION
+        db = cls(db_path, mode = mode, comment = config["comment"])
+        db._open()
+
+        return db
+
     def create_table(self, name : str, spec : Iterable[FieldSpec]) -> Table :
         # Name okay?
         if not NAME_REGEX.match(name) :
@@ -101,6 +116,10 @@ class Database :
     def drop_table(self, table_name : str) :
         table = self.table_defs.pop(table_name)
         table._drop()
+
+    def add_index(self, table_name : str, index_name : str, column : str, **kwargs) :
+        table = self.table_defs[table_name]
+        table.add_index(index_name, column, **kwargs)
 
     def get_cache_stats(self) :
         return self.db_ctx.cache.stats

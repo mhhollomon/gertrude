@@ -6,8 +6,70 @@ important.
 
 I may also create a version where the data and indexes are stored in gdbm files.
 
+# API
+## Database creation
+```python
+import gertrude
+db = gertrude.Database.create(db_path='/path/to/my_db', comment='This will be an awesome db')
+```
+### db_path
+This can be either a string or a `pathlib.Path`.
+
+This is the directory where you want the database to be created. If the directory
+does not exist, it will be created. If it DOES exist, it must be empty.
+
+### comment
+An optional string describing the database.
+
+## Opening an existing database
+```python
+import gertrude
+db = gertrude.Database.open(db_path='/path/to/my_db', mode='rw')
+```
+### db_path
+This can be either a string or a `pathlib.Path`.
+
+This is the directory that contins the `gertrude` database you wish to open.
+
+### mode
+One of the string `'rw'` (for read/write) or `'ro'` (for read-only).
+
+## Tables
+
+### Table creation
+```python
+from gertrude import cspec
+db.create_table(name="my_table", spec=[cspec('col1', 'str', pk=True), cspec('col2', 'int')])
+```
+#### name
+The name of the table. Must match the regular expression :
+`^[a-zA-Z0-9_-]+$'`
+
+#### spec
+This is the column specification.
+
+Each column is specified by fields :
+- The column name. Must match the same regular expression as table names.
+- The column type. Currently only 'str', 'int', 'bool', and 'float' are supported.
+  Note that the types are strings not the actual type class.
+- Options. The current options are :
+    - unique (bool, False) - Only a single row may contain any particular value. An
+      index will automatically be created to enforce this constraint.
+    - nullable (bool, True) - The field may be null.
+    - pk (bool, False) - 'Primary Key' - a unique, non-nullable index will be created.
+
+### Index creation
+```python
+db.add_index(table_name="my_table", index_name="my-index", column="col2")
+```
+
+`index_name` must match the same regular expression as table names. It must
+be unique to the table.
+
+A given column may only have one index.
+
 # Data layout
-A gertrude database is a directory
+A gertrude database is a directory.
 
 ## Top level (Database) level
 ### gertrude.conf
@@ -15,6 +77,7 @@ JSON file with top level configuration. Keys include :
 
 - schema_version - The version of the data layout used.
 - gertrude_version - The version of gertrude that created the database.
+- comment.
 
 ### tables
 A directory that contains a sub directory for each table.
@@ -30,10 +93,10 @@ JSON file with config information for the table. Includes column information
 Directory that contains the actual data heap. See below.
 
 ### index
-Directory that contains subdirectories for each of the indecies. See below.
+Directory that contains subdirectories for each of the indexes. See below.
 
 ## data (heap) directory
-Each row is represented by a JSON (currently) file. Each row is assigned a 20 
+Each row is represented by a msgpack file. Each row is assigned a 20
 character heap_id using [nanoid](https://github.com/puyuan/py-nanoid) using
 the custom alphabet of `123456789ABCDEFGHIJKLMNPQRSTUVWXYZ`
 
@@ -59,29 +122,29 @@ A new hash_id is assigned and all indexes are updated.
 
 ## Index subdirectory
 The subdirectory is named after the index itself. A B+ Tree structure is maintained.
-A tree node is represented by a file.
+A tree node is represented by a file. Each file is given an integer id that that is
+also it namel
 
-The root node is called simply `root` - other nodes are assigned a 20 char nanoid
-similar to heap_id.
+The root node is `000`.
 
-An internal node is a tuple :
-- kind indicator (internal)
+An internal node is a dataclass :
+- kind indicator (I)
+- The node id (an integer)
 - A List of Tuples with :
     - key
-    - node name
+    - descendent node id
 
-A leaf node is a tuple :
-- kind indicator (leaf)
-- A predecessor node name
-- A successor node name
+A leaf node is a dataclase :
+- kind indicator (L)
+- The node id
 - A List of Tuples with :
     - key
-    - heap_id of the record
+    - heap_id of the record.
+
+Index nodes are managed by an LRU Cache that is shared across all indexes
+in the database.
 
 Fan out will be 1000 (probably).
-
-I may set the root to have infinite fan out so that the tree is never more than
-2 layers deep. Even at 1000, 2 layers give you 500,000 records (with 50% fill)
 
 ## Example layout
 - my-database
@@ -98,8 +161,8 @@ I may set the root to have infinite fan out so that the tree is never more than
                         - 9JI7BB6HW6253D12
             - index
                 - my_index
-                    - root
-                    - 23JDEF456RE2
-                    - 765SDFPO0912
+                    - 000
+                    - 020
+                    - 130
         - table2
             - ...

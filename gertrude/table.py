@@ -17,6 +17,8 @@ OPT_DEFAULT = {
     "nullable" : True,
 }
 
+def cspec(name : str, type : str, **kwargs) :
+    return FieldSpec(name, type, kwargs)
 
 class Table :
     def __init__(self,
