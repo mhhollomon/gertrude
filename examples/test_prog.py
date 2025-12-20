@@ -16,7 +16,7 @@ if db_path.exists() :
 
 db = Database.create(Path("./output"))
 
-table = db.create_table("test", [
+table = db.add_table("test", [
     cspec("name", 'str', pk=True),
     cspec("age", 'int'),
 ])
@@ -74,4 +74,4 @@ table.insert({"name" : "harry", "age" : None})
 
 
 print("Cache stats:")
-print(db.get_cache_stats())
+print(db.cache_stats)

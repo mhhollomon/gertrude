@@ -37,12 +37,15 @@ class Table :
         self.spec = self._reform_spec()
 
     def _drop(self) :
-        if not self.open or self.parent is None :
+        if not self.open :
             return
+        
+        for i in self.index.values() :
+            i.close()
+
         import shutil
         shutil.rmtree(self.db_path)
         self.open = False
-        self.parent = None
 
     def _reform_spec(self) :
         x = [FieldSpec(s.name, s.type, {**OPT_DEFAULT, **s.options}) for s in self.orig_spec]
@@ -170,7 +173,7 @@ class Table :
         heap_id = _save_to_heap(self.db_path / "data", record_object)
 
         for index in self.index.values() :
-            index._insert(record_object, heap_id)
+            index.insert(record_object, heap_id)
 
         return heap_id
 

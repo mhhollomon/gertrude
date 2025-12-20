@@ -4,34 +4,34 @@ python database where each row is represented by a file.
 I am creating this as an exercise. I would not use it for anything remotely
 important.
 
-I may also create a version where the data and indexes are stored in gdbm files.
-
 # API
-## Database creation
+## Database 
+
+### creation
 ```python
 import gertrude
 db = gertrude.Database.create(db_path='/path/to/my_db', comment='This will be an awesome db')
 ```
-### db_path
+#### db_path
 This can be either a string or a `pathlib.Path`.
 
 This is the directory where you want the database to be created. If the directory
-does not exist, it will be created. If it DOES exist, it must be empty.
+does not exist, it will be created. If it **does** exist, it must be empty.
 
-### comment
+#### comment
 An optional string describing the database.
 
-## Opening an existing database
+### Opening an existing database
 ```python
 import gertrude
 db = gertrude.Database.open(db_path='/path/to/my_db', mode='rw')
 ```
-### db_path
+#### db_path
 This can be either a string or a `pathlib.Path`.
 
 This is the directory that contins the `gertrude` database you wish to open.
 
-### mode
+#### mode
 One of the string `'rw'` (for read/write) or `'ro'` (for read-only).
 
 ## Tables
@@ -39,24 +39,25 @@ One of the string `'rw'` (for read/write) or `'ro'` (for read-only).
 ### Table creation
 ```python
 from gertrude import cspec
-db.create_table(name="my_table", spec=[cspec('col1', 'str', pk=True), cspec('col2', 'int')])
+db.add_table(name="my_table", spec=[cspec('col1', 'str', pk=True), cspec('col2', 'int')])
 ```
 #### name
 The name of the table. Must match the regular expression :
 `^[a-zA-Z0-9_-]+$'`
 
 #### spec
-This is the column specification.
+This is the column specifications.
 
-Each column is specified by fields :
-- The column name. Must match the same regular expression as table names.
-- The column type. Currently only 'str', 'int', 'bool', and 'float' are supported.
+Each column is specified by the fields :
+- The column name - Must match the same regular expression as table names.
+- The column type - Currently only 'str', 'int', 'bool', and 'float' are supported.
   Note that the types are strings not the actual type class.
 - Options. The current options are :
     - unique (bool, False) - Only a single row may contain any particular value. An
       index will automatically be created to enforce this constraint.
     - nullable (bool, True) - The field may be null.
-    - pk (bool, False) - 'Primary Key' - a unique, non-nullable index will be created.
+    - pk (bool, False) - 'Primary Key' - This is the same as the combination of 
+      `unique=True, nullable=False`
 
 ### Index creation
 ```python
@@ -166,3 +167,12 @@ Fan out will be 1000 (probably).
                     - 130
         - table2
             - ...
+
+## TODO
+- Make mode 'ro' actually do something.
+- Start building a query engine.
+- Create a configuration framework.
+- Figure out multi-key indexes.
+- Honor Fan-out on internal nodes during post insert index creation.
+- Fix delete table
+    - unregister indexes from cache

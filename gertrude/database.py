@@ -96,7 +96,7 @@ class Database :
 
         return db
 
-    def create_table(self, name : str, spec : Iterable[FieldSpec]) -> Table :
+    def add_table(self, name : str, spec : Iterable[FieldSpec]) -> Table :
         # Name okay?
         if not NAME_REGEX.match(name) :
             raise ValueError(f"Invalid table name {name}")
@@ -121,5 +121,6 @@ class Database :
         table = self.table_defs[table_name]
         table.add_index(index_name, column, **kwargs)
 
-    def get_cache_stats(self) :
+    @property
+    def cache_stats(self) :
         return self.db_ctx.cache.stats

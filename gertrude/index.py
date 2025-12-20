@@ -60,6 +60,8 @@ class Index :
         self.unique = unique
         self.nullable = nullable
 
+        self.closed = False
+
         # We'll fix this later
         # see _create or _load
         self.id : int= 0
@@ -168,7 +170,7 @@ class Index :
         index.id = config["id"]
         db_ctx.cache.register(index.id, path)
         return index
-        
+            
     def _find_key_in_leaf(self, key : KeyTuple, leaf : LeafNode) -> Tuple[bool, int] :
         """Check if a key is in a leaf node. If so, return the index.
         """
@@ -226,34 +228,6 @@ class Index :
         print(f"_find_block returning {retval}")
         return retval
 
-    def _insert(self, obj : Any, heap_id : str) :
-        key : KeyTuple= self._gen_key_tuple(getattr(obj, self.column))
-        print(f"--- Inserting {key} into index {self.index_name}")
-
-        # In theory, this is not needed since check_for_insert
-        # should have been called. But its cheap, so why not.
-        if not self.nullable and key[0] :
-            raise ValueError(f"Null key in non-nullable index {self.index_name}")
-        
-        tree_path = self._find_block(key)
-        
-        leaf_id, parent_index = tree_path[-1]
-        parent_id, parent_parent_index = tree_path[-2]
-
-        leaf = self._read_node(leaf_id)
-        if leaf.k == _NODE_TYPE_LEAF :
-            leaf = cast(LeafNode, leaf)
-        else :
-            raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")
-
-        insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
-
-        if len(leaf.d) >= _NODE_FANOUT :
-            self._split_leaf(leaf, parent_index, tree_path[:-1])
-        else :
-            self._write_node(leaf_id, leaf)
-
-        #self.print_tree()
 
     def _pick_split_point(self, node : LeafNode | InternalNode) -> int :
         # Calculate where to split the block.
@@ -382,10 +356,32 @@ class Index :
             else :
                 self._write_node(parent.n, parent)
 
+    def _print_tree(self, node_id : int, prefix : str) :
+        node = self._read_node(node_id)
+        print(f"{prefix}{node.n} {node.k} :")
+        prefix = prefix + '  '
+
+        if node.k == _NODE_TYPE_INTERNAL :
+            node = cast(InternalNode, node)
+            for n in node.d :
+                print(f"{prefix}{n[0]} -> {n[1]}")
+                self._print_tree(n[1], prefix + ' ')
+        else :
+            node = cast(LeafNode, node)
+            for n in node.d :
+                print(f"{prefix}{n[0]} -> {n[1]}")
+    #################################################################
+    # Public API
+    #################################################################
+
+
     def test_for_insert(self, record : Any) -> Tuple[bool, str] :
         """Method to check if the record meets the index constraints.
-        This must be called before _insert() on the record.
+        This must be called before insert() on the record.
         """
+        if self.closed :
+            raise ValueError(f"Index {self.index_name} is closed.")
+        
         raw_key = getattr(record, self.column)
         print(f"---- Testing key {raw_key} for index {self.index_name}")
 
@@ -415,23 +411,49 @@ class Index :
         print("--- OK")
         return True, ""
     
+    def insert(self, obj : Any, heap_id : str) :
+        """Insert object into index.
+        test_for_insert() must be called first, otherwise constraints may be violated.
+        """
+        if self.closed :
+            raise ValueError(f"Index {self.index_name} is closed.")
+        
+        key : KeyTuple= self._gen_key_tuple(getattr(obj, self.column))
+
+        # In theory, this is not needed since check_for_insert
+        # should have been called. But its cheap, so why not.
+        if not self.nullable and key[0] :
+            raise ValueError(f"Null key in non-nullable index {self.index_name}")
+        
+        print(f"--- Inserting {key} into index {self.index_name}")
+        
+        tree_path = self._find_block(key)
+        
+        leaf_id, parent_index = tree_path[-1]
+
+        leaf = self._read_node(leaf_id)
+        if leaf.k == _NODE_TYPE_LEAF :
+            leaf = cast(LeafNode, leaf)
+        else :
+            raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")
+
+        insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
+
+        if len(leaf.d) >= _NODE_FANOUT :
+            self._split_leaf(leaf, parent_index, tree_path[:-1])
+        else :
+            self._write_node(leaf_id, leaf)
 
     def print_tree(self) :
+        if self.closed :
+            raise ValueError(f"Index {self.index_name} is closed.")
+        
         print(f"=== {self.index_name} Tree:")
         self._print_tree(0, '')
         print("=== End of tree")
 
-    def _print_tree(self, node_id : int, prefix : str) :
-        node = self._read_node(node_id)
-        print(f"{prefix}{node.n} {node.k} :")
-        prefix = prefix + '  '
+    def close(self) :
+        # Let the table take care of deleting storage.
 
-        if node.k == _NODE_TYPE_INTERNAL :
-            node = cast(InternalNode, node)
-            for n in node.d :
-                print(f"{prefix}{n[0]} -> {n[1]}")
-                self._print_tree(n[1], prefix + ' ')
-        else :
-            node = cast(LeafNode, node)
-            for n in node.d :
-                print(f"{prefix}{n[0]} -> {n[1]}")
+        self.db_ctx.cache.unregister(self.id)
+        self.closed = True

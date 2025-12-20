@@ -18,7 +18,7 @@ if db_path.exists() :
 
 db = gertrude.Database.create(Path("./output"))
 
-table = db.create_table("test", [
+table = db.add_table("test", [
     gertrude.FieldSpec("num", 'int', {}),
 ])
 
@@ -31,4 +31,4 @@ for num in array :
 table.print_index("test_index")
 
 print("Cache stats:")
-print(db.get_cache_stats())
+print(db.cache_stats)
