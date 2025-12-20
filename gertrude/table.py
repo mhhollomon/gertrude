@@ -133,6 +133,12 @@ class Table :
     # Public API
     #################################################################
     def add_index(self, index_name : str, column : str, **kwargs) :
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+
         if not NAME_REGEX.match(index_name) :
             raise ValueError(f"Invalid index name {index_name} for table {self.name}")
 
@@ -155,6 +161,9 @@ class Table :
         return self.spec
 
     def insert(self, record : Any) :
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 

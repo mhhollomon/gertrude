@@ -169,10 +169,7 @@ Fan out will be 1000 (probably).
             - ...
 
 ## TODO
-- Make mode 'ro' actually do something.
 - Start building a query engine.
 - Create a configuration framework.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
-- Fix delete table
-    - unregister indexes from cache

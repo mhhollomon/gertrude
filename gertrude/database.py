@@ -97,6 +97,9 @@ class Database :
         return db
 
     def add_table(self, name : str, spec : Iterable[FieldSpec]) -> Table :
+        if self.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+        
         # Name okay?
         if not NAME_REGEX.match(name) :
             raise ValueError(f"Invalid table name {name}")
@@ -114,10 +117,16 @@ class Database :
         return table
 
     def drop_table(self, table_name : str) :
+        if self.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
         table = self.table_defs.pop(table_name)
         table._drop()
 
     def add_index(self, table_name : str, index_name : str, column : str, **kwargs) :
+        if self.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
         table = self.table_defs[table_name]
         table.add_index(index_name, column, **kwargs)
 

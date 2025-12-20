@@ -379,6 +379,8 @@ class Index :
         """Method to check if the record meets the index constraints.
         This must be called before insert() on the record.
         """
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
         
@@ -415,6 +417,8 @@ class Index :
         """Insert object into index.
         test_for_insert() must be called first, otherwise constraints may be violated.
         """
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
         
