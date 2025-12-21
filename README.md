@@ -5,7 +5,7 @@ I am creating this as an exercise. I would not use it for anything remotely
 important.
 
 # API
-## Database 
+## Database
 
 ### creation
 ```python
@@ -56,7 +56,7 @@ Each column is specified by the fields :
     - unique (bool, False) - Only a single row may contain any particular value. An
       index will automatically be created to enforce this constraint.
     - nullable (bool, True) - The field may be null.
-    - pk (bool, False) - 'Primary Key' - This is the same as the combination of 
+    - pk (bool, False) - 'Primary Key' - This is the same as the combination of
       `unique=True, nullable=False`
 
 ### Index creation
@@ -173,3 +173,4 @@ Fan out will be 1000 (probably).
 - Create a configuration framework.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
+- Add actual logging.
