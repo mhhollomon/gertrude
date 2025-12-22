@@ -4,6 +4,8 @@ from typing import Dict, Iterable, NamedTuple, Any
 import json
 import msgpack
 import shutil
+import logging
+
 from .globals import NAME_REGEX, DBContext, _save_to_heap, TYPES
 
 from .index import Index
@@ -16,6 +18,8 @@ OPT_DEFAULT = {
     "unique" : False,
     "nullable" : True,
 }
+
+logger = logging.getLogger(__name__)
 
 def cspec(name : str, type : str, **kwargs) :
     return FieldSpec(name, type, kwargs)
@@ -61,7 +65,7 @@ class Table :
                 opts["unique"] = True
                 opts["nullable"] = False
 
-        return x
+        return tuple(x)
 
     def _generate_tuple_type(self) :
         tuple_types = []
@@ -73,7 +77,7 @@ class Table :
 
         return NamedTuple(self.name, tuple_types)
 
-    def _create_pk(self) :
+    def _create_auto_indexes(self) :
         pk = [x for x in self.spec if x.options.get("pk", False)]
         if len(pk) > 1 :
             raise ValueError(f"Table {self.name} has multiple primary keys.")
@@ -83,6 +87,10 @@ class Table :
             return
 
         self.add_index("pk_" + pk.name, pk.name, unique=True, nullable=False)
+
+        unique = [x for x in self.spec if x.options.get("unique", False) and not x.options.get("pk", False)]
+        for u in unique :
+            self.add_index("unq_" + u.name, u.name, unique=True, nullable=False)
 
     def _create(self) :
         if self.db_path.exists() :
@@ -101,7 +109,7 @@ class Table :
         (self.db_path / "index").mkdir()
 
         self.record = self._generate_tuple_type()
-        self._create_pk()
+        self._create_auto_indexes()
 
     def _load_def(self) :
         config = json.loads((self.db_path / "config").read_text())
@@ -175,19 +183,28 @@ class Table :
     def get_spec(self) :
         return self.spec
 
-    def insert(self, record : Any) :
+    def insert(self, *args, **kwargs) :
         if self.db_ctx.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
 
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
-
-        if not isinstance(record, self.record) :
-            if isinstance(record, dict) :
-                record_object = self.record(**record)
+        
+        if len(args) == 1 :
+            record = args[0]
+            if not isinstance(record, self.record) :
+                if isinstance(record, dict) :
+                    record_object = self.record(**record)
+                else :
+                    record_object = self.record(*record)
             else :
-                record_object = self.record(*record)
-        print(f"--- record_object = {record_object}")
+                record_object = record
+        elif len(args) > 1 :
+            raise ValueError(f"Invalid number of arguments for insert(): {len(args)}")
+        else :
+            record_object = self.record(**kwargs)
+
+        logger.debug(f"--- record_object = {record_object}")
 
         for index in self.index.values() :
             success, msg = index.test_for_insert(record_object)
@@ -207,3 +224,6 @@ class Table :
 
     def print_index(self, name : str) :
         self.index[name].print_tree()
+
+    def index_list(self) :
+        return list(self.index.keys())

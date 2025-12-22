@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from .database import Database
 
 import logging
@@ -17,5 +18,5 @@ class QueryRunner :
         
         table_name = self.steps[0][1]
         table = self.db.table_defs[table_name]
-        return list(table.scan())
+        return [ x._asdict() for x in table.scan() ]
         

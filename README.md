@@ -59,6 +59,12 @@ Each column is specified by the fields :
     - pk (bool, False) - 'Primary Key' - This is the same as the combination of
       `unique=True, nullable=False`
 
+### Table deletion
+```python
+db.drop_table(table_name="my_table")
+```
+Raises a ValueError if the database is in Read-Only mode or if the table does not exist.
+
 ### Index creation
 ```python
 db.add_index(table_name="my_table", index_name="my-index", column="col2")
@@ -68,6 +74,92 @@ db.add_index(table_name="my_table", index_name="my-index", column="col2")
 be unique to the table.
 
 A given column may only have one index.
+
+### Index Deletion
+```python
+db.drop_index(table_name="my_table", index_name="my-index")
+```
+
+Raises a ValueError if the database is in Read-Only mode or if the table 
+or index does not exist.
+
+### Automatic Index Creation
+If the FieldSpec of a column has either `pk` or `unique` as True, an
+index will be automatically created for that column at table creation time.
+The "pk" index will have the name `pk_${column_name}`. A "unique" index
+will have the name `unq_${column_name}`.
+
+### table
+Returns an object of class Table representing the given table.
+```python
+table_obj = db.table(table_name="my_table")
+```
+
+Using the object after the table has been dropped will raise an exception.
+
+```python
+db = Database.create("my_db")
+db.add_table("my_table")
+table_obj = db.table(table_name="my_table")
+db.drop_table("my_table")
+table_obj.index_list() ## !!! Exception Raised
+```
+
+
+### Table List
+Returns a list of table names in the database.
+```python
+table_names = db.table_list()
+```
+
+## Table Object
+
+### index_list
+Returns a list of the index names.
+
+### Add Index
+c.f. [Database add_index()](#index-creation)
+
+### Drop Index
+c.f. [Database drop_index()](#index-deletion)
+
+### Insert
+Insert a row as a dictionary or tuple. If done as a tuple, the values must be
+in the same order as in the column spec used when creating.
+
+A `ValueError` exception is raised if the database is in Read-only mode or the
+table has been dropped.
+
+```python
+table = db.add_table("my_table", [cspec("int_col", "int"), cpsec("str_col", "str")])
+
+# insert as dictionary
+table.insert({'str_col' : 'Hello', 'int_col' : 5})
+
+# insert as tuple or list
+table.insert((6, "Also hello"))
+
+# Keywords
+table.insert(int_col=7, str_col="Goodbye")
+```
+
+### get_spec
+Returns a tuple of FieldSpec namedtuples containing the column specifications.
+
+### Scan
+Generator that returns all rows in the table. Each row will be a NamedTuple with
+the columns as attributes.
+
+The order will be effectively random.
+
+```python
+table = db.add_table("my_table", [cspec("col1", "int")])
+table.insert({'col1' : 1})
+table.insert({'col1' : 2})
+
+for row in table.scan() :
+    print(f"col1 = {row.col1}")
+```
 
 # Data layout
 A gertrude database is a directory.
@@ -174,3 +266,6 @@ Fan out will be 1000 (probably).
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
 - Add actual logging.
+- Handle missing insert values.
+- Check typing on insert values.
+- Create a way to give defaults for inserts.

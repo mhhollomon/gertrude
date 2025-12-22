@@ -123,6 +123,9 @@ class Database :
     def drop_table(self, table_name : str) :
         if self.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
+        
+        if table_name not in self.table_defs :
+            raise ValueError(f"Table {table_name} does not exist.")
 
         table = self.table_defs.pop(table_name)
         table._drop()
@@ -145,4 +148,13 @@ class Database :
         return self.db_ctx.cache.stats
     
     def query(self, table_name : str) :
+        if table_name not in self.table_defs :
+            raise ValueError(f"Table {table_name} does not exist.")
+        
         return Query(self, table_name)
+    
+    def table_list(self) :
+        return list(self.table_defs.keys())
+    
+    def table(self, table_name : str) :
+        return self.table_defs[table_name]
