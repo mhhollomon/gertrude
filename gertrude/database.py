@@ -2,11 +2,13 @@ from typing import Iterable, Self
 from pathlib import Path
 import json
 
-from .table import Table, FieldSpec
-
 from .globals import ( CURRENT_SCHEMA_VERSION,
                       GERTRUDE_VERSION, NAME_REGEX, DBContext
                       )
+
+from .query import Query
+from .table import Table, FieldSpec
+
 
 from .int_id import IntegerIdGenerator
 from .cache import LRUCache
@@ -24,6 +26,8 @@ _OPTIONS = {
 #################################################################
 class Database :
     def __init__(self, db_path : Path, *, mode : str = "rw", comment : str = '') :
+        """Do not call directly. Use `Database.create` or `Database.open` instead.
+        """
         self.db_path = db_path
         self.table_defs = {}
         self.mode = mode
@@ -129,7 +133,16 @@ class Database :
 
         table = self.table_defs[table_name]
         table.add_index(index_name, column, **kwargs)
+    
+    def drop_index(self, table_name : str, index_name : str) :
+        if self.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
+        self.table_defs[table_name].drop_index(index_name)
 
     @property
     def cache_stats(self) :
         return self.db_ctx.cache.stats
+    
+    def query(self, table_name : str) :
+        return Query(self, table_name)

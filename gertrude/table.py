@@ -1,9 +1,9 @@
 
 from pathlib import Path
-from typing import Dict, Iterable, NamedTuple, Any, cast
+from typing import Dict, Iterable, NamedTuple, Any
 import json
 import msgpack
-
+import shutil
 from .globals import NAME_REGEX, DBContext, _save_to_heap, TYPES
 
 from .index import Index
@@ -156,6 +156,21 @@ class Table :
 
         new_index._create(self._data_iter)
 
+    def drop_index(self, index_name : str) :
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+
+        if index_name not in self.index :
+            raise ValueError(f"Index {index_name} does not exist for table {self.name}")
+
+        index_path = self.db_path / "index" / index_name
+        self.index[index_name].close()
+        del self.index[index_name]
+
+        shutil.rmtree(index_path)
 
     def get_spec(self) :
         return self.spec
