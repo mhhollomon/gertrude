@@ -80,7 +80,7 @@ A given column may only have one index.
 db.drop_index(table_name="my_table", index_name="my-index")
 ```
 
-Raises a ValueError if the database is in Read-Only mode or if the table 
+Raises a ValueError if the database is in Read-Only mode or if the table
 or index does not exist.
 
 ### Automatic Index Creation
@@ -261,7 +261,14 @@ Fan out will be 1000 (probably).
             - ...
 
 ## TODO
-- Start building a query engine.
+- Add query capabilities
+  - projection
+    - simple column with rename.
+    - literals.
+    - column expressions.
+  - filtering
+  - joins
+
 - Create a configuration framework.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
@@ -269,3 +276,8 @@ Fan out will be 1000 (probably).
 - Handle missing insert values.
 - Check typing on insert values.
 - Create a way to give defaults for inserts.
+
+## Technologies
+- [Flit](https://flit.pypa.io/en/stable/) - Python packaging
+- [Nanoid](https://github.com/puyuan/py-nanoid) is used to generate row IDs.
+- [msgpack](https://github.com/msgpack/msgpack-python/) is used to store data.
