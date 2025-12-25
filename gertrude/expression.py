@@ -1,6 +1,7 @@
 from lark import Lark
 from pathlib import Path
 from .transformer import ExprTransformer
+from .globals import ExprNode
 
 import logging
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ def _get_parser() :
 
     return _PARSER
 
-def expr_parse(text : str) :
+def expr_parse(text : str) -> ExprNode:
     tree = _get_parser().parse(text)
     logger.debug(f"tree = {tree}")
     ast = ExprTransformer().transform(tree)

@@ -1,10 +1,10 @@
 ?value : col_name
        | literal
 
-literal : DQ_STR
-        | SIGNED_INT
+?literal : SQ_STR -> lit_str
+        | SIGNED_INT -> lit_int
 
-col_name : CNAME | SQ_STR
+col_name : CNAME | DQ_STR
 
 %import common.CNAME
 %import common.ESCAPED_STRING -> DQ_STR

@@ -32,3 +32,7 @@ def test_query(tmp_path, caplog) :
     query = db.query("test").filter(("id", 2)).select("name")
     data = list(query.run())
     assert data == [{"name" : "alice"}]
+
+    query = db.query("test").filter(("id", 2)).select(("new-name" , "name"), ("literal", "'hello'"), ("litint", "42"))
+    data = list(query.run())
+    assert data == [{"new-name" : "alice", "literal" : "hello", "litint" : 42}]

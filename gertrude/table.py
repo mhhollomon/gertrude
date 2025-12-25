@@ -6,7 +6,7 @@ import msgpack
 import shutil
 import logging
 
-from .globals import NAME_REGEX, DBContext, _save_to_heap, TYPES
+from .globals import NAME_REGEX, DBContext, TYPES, _generate_id
 
 from .index import Index
 
@@ -23,6 +23,40 @@ logger = logging.getLogger(__name__)
 
 def cspec(name : str, type : str, **kwargs) :
     return FieldSpec(name, type, kwargs)
+
+def _save_to_heap(heap : Path, value : Any) -> str :
+    """Saves to the heap pointed to by the path.
+    Checks for path collisions.
+    Returns the hash_id.
+    """
+    while True :
+        hash_id = _generate_id()
+        proposed_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
+        if not proposed_path.exists():
+            break
+
+    proposed_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with proposed_path.open("wb") as f:
+        msgpack.dump(value, f)
+
+    return hash_id
+
+def _delete_from_heap(heap : Path, hash_id : str) -> Any :
+    """ Note that the hash_id is not validated nor are any
+    empty directories removed.
+    """
+    heap_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
+
+    if not heap_path.exists():
+        return None
+
+    retval = msgpack.unpackb(heap_path.read_bytes())
+
+    heap_path.unlink()
+
+    return retval
+
 
 class Table :
     def __init__(self,
@@ -43,7 +77,7 @@ class Table :
     def _drop(self) :
         if not self.open :
             return
-        
+
         for i in self.index.values() :
             i.close()
 
@@ -189,7 +223,7 @@ class Table :
 
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
-        
+
         if len(args) == 1 :
             record = args[0]
             if not isinstance(record, self.record) :
