@@ -1,0 +1,17 @@
+?value : col_name
+       | literal
+
+literal : DQ_STR
+        | SIGNED_INT
+
+col_name : CNAME | SQ_STR
+
+%import common.CNAME
+%import common.ESCAPED_STRING -> DQ_STR
+%import common._STRING_ESC_INNER
+%import common.SIGNED_INT
+
+SQ_STR : "'" _STRING_ESC_INNER "'"
+
+%import common.WS
+%ignore WS

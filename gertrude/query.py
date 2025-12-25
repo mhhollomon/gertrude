@@ -1,5 +1,7 @@
 from typing import Any, List, Self, Tuple
 
+from .expression import expr_parse
+
 type Step = Tuple[int, Any]
 
 _STAGE_READ = 0
@@ -11,28 +13,17 @@ class Query:
     def __init__(self, parent : Any, table : str) :
         self.parent = parent
         self.steps : List[Step] = [(_STAGE_READ, table)]
-        self.stage = _STAGE_READ
 
     def filter(self, *conditions : tuple) -> Self :
-        if self.stage > _STAGE_FILTER :
-            raise ValueError("Filter can not be called after select.")
-
-        self.stage = _STAGE_FILTER
         self.steps.append((_STAGE_FILTER, conditions))
         return self
 
-    def select(self, *columns : str) -> Self :
-        if self.stage >= _STAGE_SELECT :
-            raise ValueError("Select can only be called once.")
-
-        self.stage = _STAGE_SELECT
-        self.steps.append((_STAGE_SELECT, columns))
+    def select(self, *expressions : str) -> Self :
+        expr = [expr_parse(e) for e in expressions]
+        self.steps.append((_STAGE_SELECT, expr))
         return self
 
     def sort(self, *columns : str) -> Self :
-        if self.stage >= _STAGE_SORT :
-            raise ValueError("Sort can only be called once.")
-        self.stage = _STAGE_SORT
         self.steps.append((_STAGE_SORT, columns))
         return self
 

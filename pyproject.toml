@@ -12,4 +12,5 @@ dependencies = [
     "nanoid",
     "regex",
     "msgpack",
+    "lark",
 ]

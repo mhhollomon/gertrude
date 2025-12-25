@@ -1,6 +1,7 @@
 nanoid
 regex
 msgpack
+lark
 
 # build
 flit

@@ -8,6 +8,8 @@ from gertrude import Database, cspec
 
 def test_query(tmp_path, caplog) :
     caplog.set_level(logging.DEBUG, logger="gertrude.runner")
+    caplog.set_level(logging.DEBUG, logger="gertrude.expression")
+    caplog.set_level(logging.DEBUG, logger="gertrude.transformer")
     logger.debug("---- test_query")
     db_path = tmp_path / "db"
     db = Database.create(db_path, comment="first")
