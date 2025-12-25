@@ -36,3 +36,25 @@ def test_query(tmp_path, caplog) :
     query = db.query("test").filter(("id", 2)).select(("new-name" , "name"), ("literal", "'hello'"), ("litint", "42"))
     data = list(query.run())
     assert data == [{"new-name" : "alice", "literal" : "hello", "litint" : 42}]
+
+
+def test_math_query(tmp_path, caplog) :
+    caplog.set_level(logging.DEBUG, logger="gertrude.runner")
+    caplog.set_level(logging.DEBUG, logger="gertrude.expression")
+    caplog.set_level(logging.DEBUG, logger="gertrude.transformer")
+    db_path = tmp_path / "db"
+    db = Database.create(db_path)
+    table = db.add_table("test", [
+        cspec("emp", "str"), 
+        cspec("salary", "float"), 
+        cspec("bonus", "float")
+        ]
+    )
+
+    table.insert({"emp" : "bob", "salary" : 1000.0, "bonus" : 100.0})
+    table.insert({"emp" : "alice", "salary" : 2000.0, "bonus" : 200.0})
+    table.insert({"emp" : "charlie", "salary" : 3000.0, "bonus" : 300.0})
+
+    data = db.query("test").filter(("emp", "bob")).select("emp", ("total", "salary + bonus")).run()
+
+    assert list(data) == [{"emp" : "bob", "total" : 1100.0}]

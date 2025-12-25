@@ -14,7 +14,7 @@ def _get_parser() :
         with open(Path(__file__).parent / "grammar.lark", "r") as f :
            grammar_text = f.read()
 
-        _PARSER = Lark(grammar_text, parser="lalr", start="value")
+        _PARSER = Lark(grammar_text, parser="lalr", start="expr")
 
     return _PARSER
 

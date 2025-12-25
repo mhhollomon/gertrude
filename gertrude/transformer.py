@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 from lark import Transformer, v_args
 from .globals import ExprNode
 
@@ -28,6 +28,18 @@ class Literal(ExprNode) :
 
     def to_python(self) :
         return repr(self.value)
+    
+@dataclass
+class Operation(ExprNode) :
+    op : Callable[[Any, Any], Any]
+    left : ExprNode
+    right : ExprNode
+
+    def calc(self, row : dict[str, Any]) :
+        return self.op(self.left.calc(row), self.right.calc(row))
+
+    def to_python(self) :
+        return f"({self.left.to_python()} {self.op.__name__} {self.right.to_python()})"
 
 @v_args(inline=True)
 class ExprTransformer(Transformer) :
@@ -44,3 +56,16 @@ class ExprTransformer(Transformer) :
         return Literal(x.value[1:-1], 'str')
     def lit_int(self, x) :
         return Literal(int(x.value), 'int')
+    def true(self, _) :
+        return Literal(True, 'bool')
+    def false(self, _) :
+        return Literal(False, 'bool')
+    def null(self, _) :
+        return Literal(None, 'null')
+    
+    def add(self, x, y) :
+        from operator import add
+        return Operation(add, x, y)
+    def sub(self, x, y) :
+        from operator import sub
+        return Operation(sub, x, y)

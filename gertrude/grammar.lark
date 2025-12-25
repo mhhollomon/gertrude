@@ -1,9 +1,18 @@
-?value : col_name
-       | literal
+?expr : sum
 
-?literal : SQ_STR -> lit_str
-        | SIGNED_INT -> lit_int
+?sum : atom
+    | sum "+" atom -> add
+    | sum "-" atom -> sub
 
+
+?atom : SQ_STR -> lit_str
+      | SIGNED_INT -> lit_int
+      | col_name
+      | /true/i -> true
+      | /false/i -> false
+      | /null/i -> null
+
+# CNAME is pretty broad, so needs to be low
 col_name : CNAME | DQ_STR
 
 %import common.CNAME
