@@ -1,9 +1,12 @@
 ?expr : sum
 
-?sum : atom
-    | sum "+" atom -> add
-    | sum "-" atom -> sub
+?sum : product
+    | sum "+" product -> add
+    | sum "-" product -> sub
 
+?product : atom
+         | product "*" atom -> mul
+         | product "/" atom -> div
 
 ?atom : SQ_STR -> lit_str
       | SIGNED_INT -> lit_int
@@ -11,6 +14,7 @@
       | /true/i -> true
       | /false/i -> false
       | /null/i -> null
+      | "(" sum ")"
 
 # CNAME is pretty broad, so needs to be low
 col_name : CNAME | DQ_STR

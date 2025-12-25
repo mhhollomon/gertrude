@@ -69,3 +69,9 @@ class ExprTransformer(Transformer) :
     def sub(self, x, y) :
         from operator import sub
         return Operation(sub, x, y)
+    def mul(self, x, y) :
+        from operator import mul
+        return Operation(mul, x, y)
+    def div(self, x, y) :
+        from operator import truediv
+        return Operation(truediv, x, y)

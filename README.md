@@ -160,6 +160,51 @@ table.insert({'col1' : 2})
 for row in table.scan() :
     print(f"col1 = {row.col1}")
 ```
+## Query
+Queries always start from the database object.
+```python
+db.add_table("my_table", [
+  cspec("first_name", "str"),
+  cspec("last_name", "str"),
+  cspec("dept", "str"),
+  cspec("salary", "float"),
+  cspec("bonus", "float")
+])
+query = db.query("my_table").filter(("dept", "sales"))\
+    .add_column("name", "last_name + ', ' + first_name")\
+    .sort("name")\
+    .select("name", ("total comp", "salary + bonus"))
+
+data = query.run()
+```
+### filter
+
+Too be added later
+
+### add_column/select
+These two shape the output data. Select will output those quantities
+(table columns and computed columns) mentioned. `add_column` keeps all
+fields currently in the data and adds the one specified. It can override
+an existing column if needed.
+
+the spec for `select` is one or more of the following.
+- The name of a column currently in the data
+- A tuple consistion of :
+    - The name of a column to place in the data
+    - An expression string to compute the value
+
+### sort
+List of one or more keys in the data on which to sort.
+
+### expression
+
+- bare column name
+- column name in double quotes. (This can be used to select
+  columns that were created by select or add_column that don't
+  match the criteria for a column name).
+- "+ - * /" normal operator precedents applies. '+' can be used
+  with string to concatenate.
+- Any of the above in parentheses.
 
 # Data layout
 A gertrude database is a directory.
