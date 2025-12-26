@@ -170,7 +170,7 @@ db.add_table("my_table", [
   cspec("salary", "float"),
   cspec("bonus", "float")
 ])
-query = db.query("my_table").filter(("dept", "sales"))\
+query = db.query("my_table").filter(("dept = 'sales'"))\
     .add_column("name", "last_name + ', ' + first_name")\
     .sort("name")\
     .select("name", ("total comp", "salary + bonus"))
@@ -179,7 +179,8 @@ data = query.run()
 ```
 ### filter
 
-Too be added later
+A filter is an expression that yields a boolean. Rows are kept if
+the filter returns True for the row. c.f. expressions below
 
 ### add_column/select
 These two shape the output data. Select will output those quantities
@@ -205,6 +206,9 @@ List of one or more keys in the data on which to sort.
 - "+ - * /" normal operator precedents applies. '+' can be used
   with string to concatenate.
 - Any of the above in parentheses.
+- Comparision operators "=", "<", ">", "<=", "=>", "!="
+- logical operators "and", "or"
+  The operators shortcut.
 
 # Data layout
 A gertrude database is a directory.

@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 from lark import Transformer, v_args
-from .globals import ExprNode
+from .globals import ExprNode, Operation
 
 import logging
+import operator as pyops
 
 
 logger = logging.getLogger(__name__)
@@ -29,17 +30,6 @@ class Literal(ExprNode) :
     def to_python(self) :
         return repr(self.value)
     
-@dataclass
-class Operation(ExprNode) :
-    op : Callable[[Any, Any], Any]
-    left : ExprNode
-    right : ExprNode
-
-    def calc(self, row : dict[str, Any]) :
-        return self.op(self.left.calc(row), self.right.calc(row))
-
-    def to_python(self) :
-        return f"({self.left.to_python()} {self.op.__name__} {self.right.to_python()})"
 
 @v_args(inline=True)
 class ExprTransformer(Transformer) :
@@ -64,14 +54,40 @@ class ExprTransformer(Transformer) :
         return Literal(None, 'null')
     
     def add(self, x, y) :
-        from operator import add
-        return Operation(add, x, y)
+        return Operation('math', pyops.add, x, y)
     def sub(self, x, y) :
-        from operator import sub
-        return Operation(sub, x, y)
+        return Operation('math', pyops.sub, x, y)
     def mul(self, x, y) :
-        from operator import mul
-        return Operation(mul, x, y)
+        return Operation('math', pyops.mul, x, y)
     def div(self, x, y) :
-        from operator import truediv
-        return Operation(truediv, x, y)
+        return Operation('math', pyops.truediv, x, y)
+    
+    def relop(self, left, op, right) :
+        return Operation('rel', op, left, right)
+    
+    def logop(self, left, op, right) :
+        return Operation('log', op, left, right)
+    
+    def RELOPERATOR(self, x) :
+        if x.value == "=" :
+            return pyops.eq
+        elif x.value == "<" :
+            return pyops.lt
+        elif x.value == ">" :
+            return pyops.gt
+        elif x.value == "<=" :
+            return pyops.le
+        elif x.value == ">=" :
+            return pyops.ge
+        elif x.value == "!=" :
+            return pyops.ne
+        else :
+            raise ValueError(f"Unknown relational operator {x.value}")
+    
+    def LOGOPERATOR(self, x) :
+        if x.value == "and" :
+            return pyops.and_
+        elif x.value == "or" :
+            return pyops.or_
+        else :
+            raise ValueError(f"Unknown logical operator {x.value}")

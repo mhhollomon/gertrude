@@ -1,7 +1,9 @@
+from dataclasses import dataclass
+from enum import Enum
 import regex as re
 from nanoid import generate
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, NamedTuple, Tuple
 from abc import ABC, abstractmethod
 
 GERTRUDE_VERSION = "0.0.1"
@@ -44,6 +46,20 @@ class DBContext :
 def _generate_id():
     return generate(alphabet=HEAP_ID_ALPHABET, size=HEAP_ID_LENGTH)
 
+class STEP_TYPE(Enum) :
+    READ = 0
+    FILTER = 1
+    SELECT = 2
+    SORT = 3
+    ADD_COLUMN = 4
+
+class Step(NamedTuple) :
+    type : STEP_TYPE
+    data : Any
+    
+###################################################################
+# EXPRESSION CLASSES
+###################################################################
 class ExprNode(ABC):
     @abstractmethod
     def calc(self, row : dict[str, Any]) :
@@ -53,3 +69,19 @@ class ExprNode(ABC):
     def to_python(self) :
         ...
 
+
+@dataclass
+class Operation(ExprNode) :
+    category : str
+    op : Callable[[Any, Any], Any]
+    left : ExprNode
+    right : ExprNode
+
+    def name(self) :
+        return self.op.__name__
+    
+    def calc(self, row : dict[str, Any]) :
+        return self.op(self.left.calc(row), self.right.calc(row))
+
+    def to_python(self) :
+        return f"({self.left.to_python()} {self.op.__name__} {self.right.to_python()})"

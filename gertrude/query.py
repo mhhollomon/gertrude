@@ -1,22 +1,15 @@
 from typing import Any, List, Self, Tuple, cast
 
 from .expression import expr_parse
-from .globals import ExprNode
+from .globals import ExprNode, Operation, Step, STEP_TYPE
 
-type Step = Tuple[int, Any]
-
-_STAGE_READ = 0
-_STAGE_FILTER = 1
-_STAGE_SELECT = 2
-_STAGE_SORT = 3
-_STAGE_ADD_COLUMN = 4
 
 class Query:
     def __init__(self, parent : Any, table : str) :
         self.parent = parent
-        self.steps : List[Step] = [(_STAGE_READ, table)]
+        self.steps : List[Step] = [Step(STEP_TYPE.READ, table)]
 
-    def _gnerate_select_step(self, expressions : Tuple[Tuple[str, str] | str], stage_type : int) :
+    def _generate_select_step(self, expressions : Tuple[Tuple[str, str] | str], step_type : STEP_TYPE) :
         new_exprs = []
         for e in expressions :
             if isinstance(e, str) :
@@ -26,22 +19,28 @@ class Query:
                     raise ValueError(f"Invalid expression {e}")
                 name, expr = e
                 new_exprs.append((name, expr_parse(expr)))
-        self.steps.append((stage_type, new_exprs))
+        self.steps.append(Step(step_type, new_exprs))
 
-    def filter(self, *conditions : tuple) -> Self :
-        self.steps.append((_STAGE_FILTER, conditions))
+    def filter(self, *conditions : str) -> Self :
+        expr : List[ExprNode] = []
+        for c in conditions :
+            e = expr_parse(c)
+            if not isinstance(e, Operation) or e.category not in ('log', 'rel') :
+                raise ValueError(f"Invalid filter expression {c}")
+            expr.append(e)
+        self.steps.append(Step(STEP_TYPE.FILTER, expr))
         return self
 
     def select(self, *expressions : Tuple[str, str] |str) -> Self :
-        self._gnerate_select_step(cast(Tuple[Tuple[str, str] | str], expressions), _STAGE_SELECT)
+        self._generate_select_step(cast(Tuple[Tuple[str, str] | str], expressions), STEP_TYPE.SELECT)
         return self
 
     def add_column(self, name : str, expr : str) -> Self :
-        self._gnerate_select_step(((name, expr),), _STAGE_ADD_COLUMN)
+        self._generate_select_step(((name, expr),), STEP_TYPE.ADD_COLUMN)
         return self
 
     def sort(self, *columns : str) -> Self :
-        self.steps.append((_STAGE_SORT, columns))
+        self.steps.append(Step(STEP_TYPE.SORT, columns))
         return self
 
     def run(self) :

@@ -25,15 +25,15 @@ def test_query(tmp_path, caplog) :
     data = list(query.run())
     assert data == [{"id" : 1, "name" : "bob"}, {"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]
 
-    query = db.query("test").filter(("id", 2))
+    query = db.query("test").filter("id = 2")
     data = list(query.run())
     assert data == [{"id" : 2, "name" : "alice"}]
 
-    query = db.query("test").filter(("id", 2)).select("name")
+    query = db.query("test").filter("id = 2").select("name")
     data = list(query.run())
     assert data == [{"name" : "alice"}]
 
-    query = db.query("test").filter(("id", 2)).select(("new-name" , "name"), ("literal", "'hello'"), ("litint", "42"))
+    query = db.query("test").filter("id = 2").select(("new-name" , "name"), ("literal", "'hello'"), ("litint", "42"))
     data = list(query.run())
     assert data == [{"new-name" : "alice", "literal" : "hello", "litint" : 42}]
 
@@ -55,7 +55,7 @@ def test_math_query(tmp_path, caplog) :
     table.insert({"emp" : "alice", "salary" : 2000.0, "bonus" : 200.0})
     table.insert({"emp" : "charlie", "salary" : 3000.0, "bonus" : 300.0})
 
-    data = db.query("test").filter(("emp", "bob")).select("emp", ("total", "salary + bonus")).run()
+    data = db.query("test").filter("emp = 'bob'").select("emp", ("total", "salary + bonus")).run()
 
     assert list(data) == [{"emp" : "bob", "total" : 1100.0}]
 
@@ -76,7 +76,7 @@ def test_math_query2(tmp_path, caplog) :
     table.insert({"stock" : "b", "price" : 200.0, "floor" : 20.0})
     table.insert({"stock" : "c", "price" : 300.0, "floor" : 30.0})
 
-    data = db.query("test").filter(("stock", "a")).select("stock", ("total", "10 * price - floor")).run()
+    data = db.query("test").filter("stock = 'a'").select("stock", ("total", "10 * price - floor")).run()
     assert list(data) == [{"stock" : "a", "total" : 990.0}]
 
 def test_string_query(tmp_path, caplog) :
@@ -98,7 +98,7 @@ def test_string_query(tmp_path, caplog) :
     table.insert({"first_name" : "alice", "last_name" : "jones", "dept" : "sales", "salary" : 2000.0, "bonus" : 200.0})
     table.insert({"first_name" : "charlie", "last_name" : "brown", "dept" : "marketing", "salary" : 3000.0, "bonus" : 300.0})
 
-    query = db.query("my_table").filter(("dept", "sales"))\
+    query = db.query("my_table").filter("dept = 'sales'")\
         .add_column("name", "last_name + ', ' + first_name")\
         .sort("name")\
         .select("name", ("total comp", "salary + bonus"))

@@ -1,4 +1,10 @@
-?expr : sum
+?expr : logop
+
+?logop : relop
+       | relop LOGOPERATOR logop
+
+?relop : sum
+       | sum RELOPERATOR relop
 
 ?sum : product
     | sum "+" product -> add
@@ -15,6 +21,10 @@
       | /false/i -> false
       | /null/i -> null
       | "(" sum ")"
+
+
+RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
+LOGOPERATOR : "and" | "or"
 
 # CNAME is pretty broad, so needs to be low
 col_name : CNAME | DQ_STR
