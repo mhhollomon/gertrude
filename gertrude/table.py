@@ -42,6 +42,14 @@ def _save_to_heap(heap : Path, value : Any) -> str :
 
     return hash_id
 
+def _read_from_heap(heap : Path, hash_id : str) -> Any :
+    heap_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
+
+    if not heap_path.exists():
+        return None
+
+    return msgpack.unpackb(heap_path.read_bytes())
+
 def _delete_from_heap(heap : Path, hash_id : str) -> Any :
     """ Note that the hash_id is not validated nor are any
     empty directories removed.
@@ -174,7 +182,7 @@ class Table :
     #################################################################
     # Public API
     #################################################################
-    def add_index(self, index_name : str, column : str, **kwargs) :
+    def add_index(self, index_name : str, column : str, **kwargs) -> Index:
         if self.db_ctx.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
 
@@ -197,6 +205,8 @@ class Table :
         self.index[index_name] = new_index
 
         new_index._create(self._data_iter)
+
+        return new_index
 
     def drop_index(self, index_name : str) :
         if self.db_ctx.mode == "ro" :
@@ -255,6 +265,17 @@ class Table :
     def scan(self) :
         for record in self._data_iter() :
             yield record[1]
+
+    def index_scan(self, name : str) :
+        if name not in self.index :
+            raise ValueError(f"Index {name} does not exist for table {self.name}")
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+
+        for block in self.index[name].scan() :
+            row = self.record(*_read_from_heap(self.db_path / "data", block))._asdict()
+            yield row
+
 
     def print_index(self, name : str) :
         self.index[name].print_tree()

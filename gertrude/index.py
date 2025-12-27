@@ -7,6 +7,9 @@ from typing import Any, List, NamedTuple, Optional, Tuple, cast
 
 from .globals import TYPES, DBContext
 
+import logging
+logger = logging.getLogger(__name__)
+
 _NODE_FANOUT : int = 6
 
 type KeyTuple = Tuple[bool, Any]
@@ -176,7 +179,7 @@ class Index :
         """
 
         i = bisect_left(leaf.d, key, key=lambda x : tuple(x[0]))
-        print(f"_find_key_in_leaf: i = {i}")
+        logger.debug(f"_find_key_in_leaf: i = {i}")
         if i < len(leaf.d) and tuple(leaf.d[i][0]) == key :
             return True, i
         else :
@@ -191,7 +194,7 @@ class Index :
         if parent is None :
             parent = self._read_root()
             retval += [(0, _INVALID_INDEX)]
-        print(f"Finding block for key = '{key}'")
+        logger.debug(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
         # The block pointed to by index n has keys that
@@ -201,7 +204,7 @@ class Index :
         # index=0 is for those keys that are strictly less than
         # the first key.
         i = bisect_left(parent.d, key, lo=1, key=lambda x : tuple(x[0]))
-        print(f"raw i = {i}")
+        logger.debug(f"raw i = {i}")
         # if the index is 1, it is either because we need to
         # look at the block at index 1 or we need to look at
         # the block at index 0.
@@ -214,7 +217,7 @@ class Index :
                 i = 0
         elif i == len(parent.d) or tuple(parent.d[i][0]) > key :
             i -= 1
-        print(f"final i = {i}")
+        logger.debug(f"final i = {i}")
         leaf_id = parent.d[i][1]
 
         retval += [(leaf_id, i)]
@@ -225,7 +228,7 @@ class Index :
             maybe_leaf = cast(InternalNode, maybe_leaf)
             return retval + self._find_block(key, maybe_leaf)
 
-        print(f"_find_block returning {retval}")
+        logger.debug(f"_find_block returning {retval}")
         return retval
 
 
@@ -259,7 +262,7 @@ class Index :
                 break
             right_offset += 1
 
-        print(f"left_offset = {left_offset}, right_offset = {right_offset}")
+        logger.debug(f"left_offset = {left_offset}, right_offset = {right_offset}")
 
         # Which way is shorter?
         if left_offset < right_offset :
@@ -292,15 +295,15 @@ class Index :
         else :
             raise ValueError(f"Invalid node type {parent.k} for internal node {parent_id}")
 
-        print(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
+        logger.debug(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
 
         split_point = self._pick_split_point(node)
-        print(f"split_point = {split_point}")
+        logger.debug(f"split_point = {split_point}")
 
         left_data = node.d[:split_point]
         right_data = node.d[split_point:]
-        print(f"left_data = {left_data}")
-        print(f"right_data = {right_data}")
+        logger.debug(f"left_data = {left_data}")
+        logger.debug(f"right_data = {right_data}")
 
         self._write_node(node.n, _make_leaf(node.n, left_data))
         right_id = self.db_ctx.generate_id()
@@ -329,15 +332,15 @@ class Index :
         else :
             raise ValueError(f"Invalid node type {parent.k} for internal node {parent_id}")
 
-        print(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
+        logger.debug(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
 
         split_point = self._pick_split_point(node)
-        print(f"split_point = {split_point}")
+        logger.debug(f"split_point = {split_point}")
 
         left_data = node.d[:split_point]
         right_data = node.d[split_point:]
-        print(f"left_data = {left_data}")
-        print(f"right_data = {right_data}")
+        logger.debug(f"left_data = {left_data}")
+        logger.debug(f"right_data = {right_data}")
 
         if splitting_root :
             left_id = self.db_ctx.generate_id()
@@ -378,6 +381,55 @@ class Index :
             for n in node.d :
                 print(f"{prefix}{n[0]} -> {n[1]}")
 
+
+    class IndexIterator :
+        def __init__(self, index : Index) :
+            self.index = index
+            #List of tuples of block_id and current index
+            self.scan_path : List[Tuple[int, int]] = []
+            node = index._read_root()
+            while node.k == _NODE_TYPE_INTERNAL :
+                node = cast(InternalNode, node)
+                self.scan_path.append((node.n, 0))
+                node = index._read_node(node.d[0][1])
+            # append the leaf
+            self.scan_path.append((node.n, 0))
+
+        def __iter__(self) :
+            return self
+
+        def __next__(self) -> str :
+            '''Returns the row heap id'''
+            logger.debug(f"scan_path = {self.scan_path}")
+            if len(self.scan_path) == 0 :
+                raise StopIteration
+
+            item = self.scan_path.pop()
+            node = self.index._read_node(item[0])
+            if node.k == _NODE_TYPE_LEAF :
+                node = cast(LeafNode, node)
+                if item[1] >= len(node.d) :
+                    return self.__next__()
+                else :
+                    self.scan_path.append((node.n, item[1]+1))
+                    return node.d[item[1]][1]
+            else :
+                node = cast(InternalNode, node)
+                if item[1] >= len(node.d) - 1:
+                    return self.__next__()
+                else :
+                    current_index = item[1]+1
+                    self.scan_path.append((node.n, current_index))
+                    node = self.index._read_node(node.d[current_index][1])
+                    while node.k == _NODE_TYPE_INTERNAL :
+                        node = cast(InternalNode, node)
+                        self.scan_path.append((node.n, 0))
+                        node = self.index._read_node(node.d[0][1])
+                    # append the leaf
+                    node = cast(LeafNode, node)
+                    self.scan_path.append((node.n, 0))
+                    return node.d[0][1]
+
     #################################################################
     # Public API
     #################################################################
@@ -392,32 +444,32 @@ class Index :
             raise ValueError(f"Index {self.index_name} is closed.")
 
         raw_key = getattr(record, self.column)
-        print(f"---- Testing key {raw_key} for index {self.index_name}")
+        logger.debug(f"---- Testing key {raw_key} for index {self.index_name}")
 
         if not self.nullable :
             if raw_key is None :
-                print(f"--- Null key in non-nullable index {self.index_name}")
+                logger.debug(f"--- Null key in non-nullable index {self.index_name}")
                 return False, f"Null key in non-nullable index {self.index_name}"
 
         if not self.unique :
-            print(f"--- Non-unique index {self.index_name}")
+            logger.debug(f"--- Non-unique index {self.index_name}")
             return (True, "")
 
         # check for duplicate key
         key = self._gen_key_tuple(raw_key)
 
         leaf_id, i = self._find_block(key)[-1]
-        print(f"--- leaf_id = {leaf_id}, i = {i}")
+        logger.debug(f"--- leaf_id = {leaf_id}, i = {i}")
         leaf = self._read_node(leaf_id)
 
         test = self._find_key_in_leaf(key, cast( LeafNode, leaf))
-        print(f"--- test = {test}")
+        logger.debug(f"--- test = {test}")
 
         if test[0] :
-            print(f"--- Duplicate key '{raw_key}' in unique index {self.index_name}")
+            logger.debug(f"--- Duplicate key '{raw_key}' in unique index {self.index_name}")
             return False, f"Duplicate key '{raw_key}' in unique index {self.index_name}"
 
-        print("--- OK")
+        logger.debug("--- OK")
         return True, ""
 
     def insert(self, obj : Any, heap_id : str) :
@@ -436,7 +488,7 @@ class Index :
         if not self.nullable and key[0] :
             raise ValueError(f"Null key in non-nullable index {self.index_name}")
 
-        print(f"--- Inserting {key} into index {self.index_name}")
+        logger.debug(f"--- Inserting {key} into index {self.index_name}")
 
         tree_path = self._find_block(key)
 
@@ -465,6 +517,13 @@ class Index :
         self._print_tree(0, '')
         print("=== End of tree")
 
+    def scan(self) :
+        if self.closed :
+            raise ValueError(f"Index {self.index_name} is closed.")
+
+        for record in Index.IndexIterator(self) :
+            yield record
+
     def close(self) :
         if self.closed :
             return
@@ -472,3 +531,4 @@ class Index :
 
         self.db_ctx.cache.unregister(self.id)
         self.closed = True
+

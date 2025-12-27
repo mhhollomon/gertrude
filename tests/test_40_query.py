@@ -1,8 +1,5 @@
-import sys
 
 import logging
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 from gertrude import Database, cspec
 
@@ -10,7 +7,6 @@ def test_query(tmp_path, caplog) :
     caplog.set_level(logging.DEBUG, logger="gertrude.runner")
     caplog.set_level(logging.DEBUG, logger="gertrude.expression")
     caplog.set_level(logging.DEBUG, logger="gertrude.transformer")
-    logger.debug("---- test_query")
     db_path = tmp_path / "db"
     db = Database.create(db_path, comment="first")
     table = db.add_table("test", [
@@ -45,8 +41,8 @@ def test_math_query(tmp_path, caplog) :
     db_path = tmp_path / "db"
     db = Database.create(db_path)
     table = db.add_table("test", [
-        cspec("emp", "str"), 
-        cspec("salary", "float"), 
+        cspec("emp", "str"),
+        cspec("salary", "float"),
         cspec("bonus", "float")
         ]
     )
@@ -66,8 +62,8 @@ def test_math_query2(tmp_path, caplog) :
     db_path = tmp_path / "db"
     db = Database.create(db_path)
     table = db.add_table("test", [
-        cspec("stock", "str"), 
-        cspec("price", "float"), 
+        cspec("stock", "str"),
+        cspec("price", "float"),
         cspec("floor", "float")
         ]
     )
@@ -93,7 +89,7 @@ def test_string_query(tmp_path, caplog) :
         cspec("salary", "float"),
         cspec("bonus", "float")
         ])
-    
+
     table.insert({"first_name" : "bob", "last_name" : "smith", "dept" : "sales", "salary" : 1000.0, "bonus" : 100.0})
     table.insert({"first_name" : "alice", "last_name" : "jones", "dept" : "sales", "salary" : 2000.0, "bonus" : 200.0})
     table.insert({"first_name" : "charlie", "last_name" : "brown", "dept" : "marketing", "salary" : 3000.0, "bonus" : 300.0})
