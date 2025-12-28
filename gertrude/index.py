@@ -4,6 +4,7 @@ import json
 import msgpack
 from pathlib import Path
 from typing import Any, List, NamedTuple, Optional, Tuple, cast
+import operator as pyops
 
 from .globals import TYPES, DBContext
 
@@ -383,8 +384,10 @@ class Index :
 
 
     class IndexIterator :
-        def __init__(self, index : Index) :
+        def __init__(self, index : Index, key : Any = None, include_key : bool = True) :
             self.index = index
+            self.key = key
+            self.operator = pyops.gt if include_key else pyops.ge
             #List of tuples of block_id and current index
             self.scan_path : List[Tuple[int, int]] = []
             node = index._read_root()
@@ -412,6 +415,8 @@ class Index :
                     return self.__next__()
                 else :
                     self.scan_path.append((node.n, item[1]+1))
+                    if self.key is not None and self.operator(tuple(node.d[item[1]][0]),(False, self.key)) :
+                        raise StopIteration
                     return node.d[item[1]][1]
             else :
                 node = cast(InternalNode, node)
@@ -428,6 +433,9 @@ class Index :
                     # append the leaf
                     node = cast(LeafNode, node)
                     self.scan_path.append((node.n, 0))
+                    if self.key is not None and self.operator(tuple(node.d[item[1]][0]),(False, self.key)) :
+                        raise StopIteration
+
                     return node.d[0][1]
 
     #################################################################
@@ -517,11 +525,11 @@ class Index :
         self._print_tree(0, '')
         print("=== End of tree")
 
-    def scan(self) :
+    def scan(self, key : Any = None, include_key : bool = True) :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        for record in Index.IndexIterator(self) :
+        for record in Index.IndexIterator(self, key, include_key) :
             yield record
 
     def close(self) :

@@ -266,13 +266,13 @@ class Table :
         for record in self._data_iter() :
             yield record[1]
 
-    def index_scan(self, name : str) :
+    def index_scan(self, name : str, key : Any = None, include_key : bool = True) :
         if name not in self.index :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        for block in self.index[name].scan() :
+        for block in self.index[name].scan(key, include_key) :
             row = self.record(*_read_from_heap(self.db_path / "data", block))._asdict()
             yield row
 

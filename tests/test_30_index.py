@@ -20,3 +20,9 @@ def test_index_scan(caplog, tmp_path) :
 
     data = list(table.index_scan("name_index"))
     assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
+
+    data = list(table.index_scan("name_index", "bob"))
+    assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}]
+
+    data = list(table.index_scan("name_index", "bob", include_key=False))
+    assert data == [{"id" : 2, "name" : "alice"}]
