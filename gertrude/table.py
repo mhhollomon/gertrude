@@ -1,25 +1,25 @@
 
 from pathlib import Path
-from typing import Dict, Iterable, NamedTuple, Any, Union
+from typing import Dict, Iterable, Any
 import json
 import msgpack
 import shutil
 import logging
 
-from .globals import NAME_REGEX, DBContext, TYPES, _generate_id
+from .globals import (
+    NAME_REGEX, DBContext,
+    TYPES, _generate_id,
+    _Row, FieldSpec
+    )
 
 from .index import Index, KeyBound
 
-
-FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
 
 OPT_DEFAULT = {
     "pk" : False,
     "unique" : False,
     "nullable" : True,
 }
-
-logger = logging.getLogger(__name__)
 
 def cspec(name : str, type : str, **kwargs) :
     return FieldSpec(name, type, kwargs)
@@ -66,6 +66,8 @@ def _delete_from_heap(heap : Path, hash_id : str) -> Any :
     return retval
 
 
+logger = logging.getLogger(__name__)
+
 class Table :
     def __init__(self,
                 db_path : Path,
@@ -80,7 +82,7 @@ class Table :
         self.db_ctx = db_ctx
         self.open = True
 
-        self.spec = self._reform_spec()
+        self.spec : tuple[FieldSpec, ...] = self._reform_spec()
 
     def _drop(self) :
         if not self.open :
@@ -93,13 +95,15 @@ class Table :
         shutil.rmtree(self.db_path)
         self.open = False
 
-    def _reform_spec(self) :
+    def _reform_spec(self) -> tuple[FieldSpec, ...] :
         x = [FieldSpec(s.name, s.type, {**OPT_DEFAULT, **s.options}) for s in self.orig_spec]
 
         nameset = set()
         for s in x :
             if s.name in nameset :
                 raise ValueError(f"Duplicate field name {s.name} in table {self.name}")
+            if s.type not in TYPES :
+                raise ValueError(f"Invalid type {s.type} for field {s.name}")
             nameset.add(s.name)
 
             opts = s.options
@@ -108,16 +112,6 @@ class Table :
                 opts["nullable"] = False
 
         return tuple(x)
-
-    def _generate_tuple_type(self) :
-        tuple_types = []
-        for s in self.spec :
-            if s.type not in TYPES :
-                raise ValueError(f"Invalid type {s.type} for field {s.name}")
-            real_type = TYPES[s.type]
-            tuple_types.append((s.name, real_type))
-
-        return NamedTuple(self.name, tuple_types)
 
     def _create_auto_indexes(self) :
         pk = [x for x in self.spec if x.options.get("pk", False)]
@@ -149,17 +143,12 @@ class Table :
         (self.db_path / "config").write_text(json.dumps(config))
         (self.db_path / "data").mkdir()
         (self.db_path / "index").mkdir()
-
-        self.record = self._generate_tuple_type()
         self._create_auto_indexes()
 
     def _load_def(self) :
         config = json.loads((self.db_path / "config").read_text())
         self.id = config["id"]
         self.spec = config["spec"]
-
-        self.record = self._generate_tuple_type()
-
         index_path = self.db_path / "index"
         for index in index_path.glob("*") :
             Index._load(index, self.db_ctx)
@@ -175,7 +164,7 @@ class Table :
                 heap_id = entry.parent.parent.name + heap_id
 
                 data = msgpack.unpackb(entry.read_bytes())
-                record = self.record(*data)
+                record = _Row.from_storage(self.spec, data)
                 yield (heap_id,record)
 
 
@@ -236,17 +225,17 @@ class Table :
 
         if len(args) == 1 :
             record = args[0]
-            if not isinstance(record, self.record) :
+            if not isinstance(record, _Row) :
                 if isinstance(record, dict) :
-                    record_object = self.record(**record)
+                    record_object = _Row.from_dict(self.spec, record)
                 else :
-                    record_object = self.record(*record)
+                    record_object = _Row.from_storage(self.spec, record)
             else :
                 record_object = record
         elif len(args) > 1 :
             raise ValueError(f"Invalid number of arguments for insert(): {len(args)}")
         else :
-            record_object = self.record(**kwargs)
+            record_object = _Row.from_dict(self.spec, **kwargs)
 
         logger.debug(f"--- record_object = {record_object}")
 
@@ -255,7 +244,7 @@ class Table :
             if not success :
                 raise ValueError(f"Failed to insert record: {msg}")
 
-        heap_id = _save_to_heap(self.db_path / "data", record_object)
+        heap_id = _save_to_heap(self.db_path / "data", record_object.to_storage())
 
         for index in self.index.values() :
             index.insert(record_object, heap_id)
@@ -273,7 +262,7 @@ class Table :
             raise ValueError(f"Table {self.name} is closed.")
 
         for block in self.index[name].scan(key, key_bound, include_key) :
-            row = self.record(*_read_from_heap(self.db_path / "data", block))._asdict()
+            row = _Row.from_storage(self.spec, _read_from_heap(self.db_path / "data", block))
             yield row
 
 
@@ -284,10 +273,11 @@ class Table :
         return list(self.index.keys())
 
     def delete(self, row : dict[str, Any]) -> bool :
-        victim = self.record(**row)
+        victim = _Row.from_dict(self.spec, row)
 
         for block_id, record in self._data_iter() :
             if record == victim :
+                logger.debug(f"Deleting record{record}")
                 _delete_from_heap(self.db_path / "data", block_id)
                 for index in self.index.values() :
                     index.delete(row)

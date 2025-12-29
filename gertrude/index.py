@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, List, NamedTuple, Optional, Tuple, cast
 import operator as pyops
 
-from .globals import TYPES, DBContext
+from .globals import TYPES, DBContext, _Row
 
 import logging
 logger = logging.getLogger(__name__)
@@ -127,7 +127,7 @@ class Index :
         keyset = set()
         for record in iterator() :
             (heap_id, data) = record
-            key = getattr(data, self.column)
+            key = data[self.column]
 
             if self.unique :
                 if key in keyset :
@@ -426,7 +426,7 @@ class Index :
 
 
     class IndexIterator :
-        def __init__(self, index : Index, key : Any = None, key_bound : KeyBound = KeyBound.NONE, include_key : bool = True) :
+        def __init__(self, index : 'Index', key : Any = None, key_bound : KeyBound = KeyBound.NONE, include_key : bool = True) :
             if key is None and key_bound != KeyBound.NONE :
                 raise ValueError("Cannot specify key_bound without key.")
 
@@ -507,7 +507,7 @@ class Index :
     # Public API
     #################################################################
 
-    def test_for_insert(self, record : Any) -> Tuple[bool, str] :
+    def test_for_insert(self, record : _Row) -> Tuple[bool, str] :
         """Method to check if the record meets the index constraints.
         This must be called before insert() on the record.
         """
@@ -516,7 +516,7 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        raw_key = getattr(record, self.column)
+        raw_key = record[self.column]
         logger.debug(f"---- Testing key {raw_key} for index {self.index_name}")
 
         if not self.nullable :
@@ -545,7 +545,7 @@ class Index :
         logger.debug("--- OK")
         return True, ""
 
-    def insert(self, obj : Any, heap_id : str) :
+    def insert(self, obj : _Row, heap_id : str) :
         """Insert object into index.
         test_for_insert() must be called first, otherwise constraints may be violated.
         """
@@ -554,7 +554,7 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        key : KeyTuple= self._gen_key_tuple(getattr(obj, self.column))
+        key : KeyTuple= self._gen_key_tuple(obj[self.column])
 
         # In theory, this is not needed since check_for_insert
         # should have been called. But its cheap, so why not.

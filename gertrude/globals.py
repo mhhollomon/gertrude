@@ -56,7 +56,52 @@ class STEP_TYPE(Enum) :
 class Step(NamedTuple) :
     type : STEP_TYPE
     data : Any
-    
+
+FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
+
+class _Row :
+    def __init__(self, spec : tuple[FieldSpec, ...]) :
+        self.data : dict[str, Any] = {}
+        self.spec = spec
+
+    @classmethod
+    def from_storage(cls, spec : tuple[FieldSpec, ...], in_data : list[Any]) :
+        row = cls(spec)
+        row.data = dict(zip([x.name for x in spec], in_data, strict=True))
+        return row
+
+    @classmethod
+    def from_dict(cls, spec : tuple[FieldSpec, ...], in_data : dict[str, Any]) :
+        row = cls(spec)
+        row.data = in_data
+        return row
+
+    def to_storage(self) -> list[Any] :
+        return [self.data[x.name] for x in self.spec]
+
+    def __getitem__(self, key : str) -> Any :
+        return self.data[key]
+
+    def __setitem__(self, key : str, value : Any) :
+        self.data[key] = value
+
+    def __iter__(self) :
+        return iter(self.data)
+
+    def __len__(self) :
+        return len(self.data)
+
+    def __eq__(self, other) :
+        if isinstance(other, _Row) :
+            return self.data == other.data
+        elif isinstance(other, dict) :
+            return self.data == other
+        else :
+            return False
+
+    def _asdict(self) :
+        return {**self.data}
+
 ###################################################################
 # EXPRESSION CLASSES
 ###################################################################
@@ -79,7 +124,7 @@ class Operation(ExprNode) :
 
     def name(self) :
         return self.op.__name__
-    
+
     def calc(self, row : dict[str, Any]) :
         return self.op(self.left.calc(row), self.right.calc(row))
 

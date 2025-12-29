@@ -16,7 +16,7 @@ def test_delete_row_no_index(caplog, tmp_path) :
 
     assert table.delete({"id" : 2, "name" : "alice"})
 
-    data = sorted([x._asdict() for x in table.scan()], key=lambda x : x["id"])
+    data = sorted([x for x in table.scan()], key=lambda x : x["id"])
     assert data == [{"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
 
 def test_delete_row_with_index(caplog, tmp_path) :
@@ -37,7 +37,7 @@ def test_delete_row_with_index(caplog, tmp_path) :
 
     assert table.delete({"id" : 2, "name" : "alice"})
 
-    data = sorted([x._asdict() for x in table.scan()], key=lambda x : x["id"])
+    data = sorted([x for x in table.scan()], key=lambda x : x["id"])
     assert data == [{"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
 
     data = list(table.index_scan("name_index"))
