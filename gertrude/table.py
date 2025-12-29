@@ -282,3 +282,15 @@ class Table :
 
     def index_list(self) :
         return list(self.index.keys())
+
+    def delete(self, row : dict[str, Any]) -> bool :
+        victim = self.record(**row)
+
+        for block_id, record in self._data_iter() :
+            if record == victim :
+                _delete_from_heap(self.db_path / "data", block_id)
+                for index in self.index.values() :
+                    index.delete(row)
+                return True
+
+        return False

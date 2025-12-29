@@ -611,3 +611,27 @@ class Index :
         self.db_ctx.cache.unregister(self.id)
         self.closed = True
 
+    def delete(self, row : dict[Any, str]) :
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+        if self.closed :
+            raise ValueError(f"Index {self.index_name} is closed.")
+
+        key = self._gen_key_tuple(row[self.column])
+        tree_path = self._find_block2(key)
+
+        leaf_id, leaf_index = tree_path[-1]
+
+        if leaf_index == _INVALID_INDEX :
+            raise ValueError(f"Key {key} not found in index {self.index_name}")
+
+        leaf = self._read_node(leaf_id)
+        if leaf.k == _NODE_TYPE_LEAF :
+            leaf = cast(LeafNode, leaf)
+        else :
+            raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")
+        del leaf.d[leaf_index]
+        self._write_node(leaf_id, leaf)
+
+
+
