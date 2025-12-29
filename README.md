@@ -160,6 +160,43 @@ table.insert({'col1' : 2})
 for row in table.scan() :
     print(f"col1 = {row.col1}")
 ```
+
+### index_scan()
+Scan the table in index order rather than table order. Also, a key may given as a lower
+or upper bound.
+
+```python
+from gertrude import KeyBound
+
+table = db.table("my_table")
+
+# Scan all the rows in the table, but in index order.
+for r in table.index_scan("my_index")
+    ...
+
+# Scan for rows that are less than or equal to the key
+for r in table.index_scan("my_index", key=42, key_bound=KeyBound.UPPER)
+    ...
+# Scan for rows that are strictly less than the key
+for r in table.index_scan("my_index", key=42, key_bound=KeyBound.UPPER, include_key=False)
+    ...
+# Scan for rows that are greater than or equal to the key
+for r in table.index_scan("my_index", key=42, key_bound=KeyBound.LOWER)
+    ...
+# Scan for rows that are strictly greater than the key
+for r in table.index_scan("my_index", key=42, key_bound=KeyBound.LOWER, include_key=False)
+    ...
+```
+
+### delete()
+Delete a row using an object. Method returns `True` if a row was deleted.
+```python
+table = db.add_table("my_table", [cspec("col1", "int")])
+table.insert({'col1' : 1})
+table.insert({'col1' : 2})
+
+table.delete({'col1' : 1})
+```
 ## Query
 Queries always start from the database object.
 ```python
