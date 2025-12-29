@@ -1,4 +1,4 @@
-from gertrude import Database, cspec
+from gertrude import Database, cspec, KeyBound
 import logging
 
 def test_index_scan(caplog, tmp_path) :
@@ -21,8 +21,14 @@ def test_index_scan(caplog, tmp_path) :
     data = list(table.index_scan("name_index"))
     assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
 
-    data = list(table.index_scan("name_index", "bob"))
+    data = list(table.index_scan("name_index", "bob", key_bound=KeyBound.UPPER))
     assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}]
 
-    data = list(table.index_scan("name_index", "bob", include_key=False))
+    data = list(table.index_scan("name_index", "bob", key_bound=KeyBound.UPPER, include_key=False))
     assert data == [{"id" : 2, "name" : "alice"}]
+
+    data = list(table.index_scan("name_index", "bob", key_bound=KeyBound.LOWER))
+    assert data == [ {"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
+
+    data = list(table.index_scan("name_index", "bob", key_bound=KeyBound.LOWER, include_key=False))
+    assert data == [{"id" : 3, "name" : "charlie"}]

@@ -1,6 +1,6 @@
 
 from pathlib import Path
-from typing import Dict, Iterable, NamedTuple, Any
+from typing import Dict, Iterable, NamedTuple, Any, Union
 import json
 import msgpack
 import shutil
@@ -8,7 +8,7 @@ import logging
 
 from .globals import NAME_REGEX, DBContext, TYPES, _generate_id
 
-from .index import Index
+from .index import Index, KeyBound
 
 
 FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
@@ -266,13 +266,13 @@ class Table :
         for record in self._data_iter() :
             yield record[1]
 
-    def index_scan(self, name : str, key : Any = None, include_key : bool = True) :
+    def index_scan(self, name : str, key : Any = None, key_bound : KeyBound = KeyBound.NONE, include_key : bool = True) :
         if name not in self.index :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        for block in self.index[name].scan(key, include_key) :
+        for block in self.index[name].scan(key, key_bound, include_key) :
             row = self.record(*_read_from_heap(self.db_path / "data", block))._asdict()
             yield row
 

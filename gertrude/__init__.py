@@ -8,5 +8,6 @@ __version__ = GERTRUDE_VERSION
 
 from .database import Database
 from .table import FieldSpec, cspec
+from .index import KeyBound
 
-__all__ = ["Database", "FieldSpec", "cspec"]
+__all__ = ["Database", "FieldSpec", "cspec", "KeyBound"]
