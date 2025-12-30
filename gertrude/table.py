@@ -177,6 +177,18 @@ class Table :
     def get_spec(self) :
         return self.spec
 
+    def spec_for_column(self, column : str) -> FieldSpec | None :
+        col = [x for x in self.spec if x.name == column]
+        if len(col) != 1 :
+            return None
+        return col[0]
+
+    def find_index_for_column(self, column : str) -> str | None:
+        index = [k for k, x in self.index.items() if x.column == column]
+        if len(index) != 1 :
+            return None
+        return index[0]
+
     def insert(self, *args, **kwargs) :
         if self.db_ctx.mode == "ro" :
             raise ValueError("Database is in read-only mode.")

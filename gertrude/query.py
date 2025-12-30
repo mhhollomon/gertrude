@@ -1,7 +1,9 @@
 from typing import Any, List, Self, Tuple, cast
 
 from .expression import expr_parse
-from .globals import ExprNode, Operation, Step, STEP_TYPE
+from .globals import Step, STEP_TYPE
+
+from .lib.expr_nodes import ExprNode
 
 
 class Query:

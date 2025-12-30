@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, NamedTuple
 from abc import ABC, abstractmethod
 
-GERTRUDE_VERSION = "0.0.1"
+GERTRUDE_VERSION = "0.0.2"
 CURRENT_SCHEMA_VERSION = 1
 
 NAME_REGEX = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
@@ -96,31 +96,3 @@ class _Row :
     def _asdict(self) :
         return {**self.data}
 
-###################################################################
-# EXPRESSION CLASSES
-###################################################################
-class ExprNode(ABC):
-    @abstractmethod
-    def calc(self, row : dict[str, Any]) :
-        ...
-
-    @abstractmethod
-    def to_python(self) :
-        ...
-
-
-@dataclass
-class Operation(ExprNode) :
-    category : str
-    op : Callable[[Any, Any], Any]
-    left : ExprNode
-    right : ExprNode
-
-    def name(self) :
-        return self.op.__name__
-
-    def calc(self, row : dict[str, Any]) :
-        return self.op(self.left.calc(row), self.right.calc(row))
-
-    def to_python(self) :
-        return f"({self.left.to_python()} {self.op.__name__} {self.right.to_python()})"

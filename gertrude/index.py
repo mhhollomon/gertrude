@@ -61,7 +61,7 @@ class Index :
                  column : str, coltype : str, db_ctx : DBContext, *,
                  unique : bool = False, nullable : bool = True) :
         self.index_name = index_name
-        self.column = column
+        self._column = column
         self.coltype = coltype
         self.path = path
         self.real_type = TYPES[coltype]
@@ -110,7 +110,7 @@ class Index :
 
         config = {
             "name" : self.index_name,
-            "column" : self.column,
+            "column" : self._column,
             "coltype" : self.coltype,
             "id" : self.id,
             "unique" : self.unique,
@@ -127,7 +127,7 @@ class Index :
         keyset = set()
         for record in iterator() :
             (heap_id, data) = record
-            key = data[self.column]
+            key = data[self._column]
 
             if self.unique :
                 if key in keyset :
@@ -507,6 +507,10 @@ class Index :
     # Public API
     #################################################################
 
+    @property
+    def column(self) :
+        return self._column
+
     def test_for_insert(self, record : _Row) -> Tuple[bool, str] :
         """Method to check if the record meets the index constraints.
         This must be called before insert() on the record.
@@ -516,7 +520,7 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        raw_key = record[self.column]
+        raw_key = record[self._column]
         logger.debug(f"---- Testing key {raw_key} for index {self.index_name}")
 
         if not self.nullable :
@@ -554,7 +558,7 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        key : KeyTuple= self._gen_key_tuple(obj[self.column])
+        key : KeyTuple= self._gen_key_tuple(obj[self._column])
 
         # In theory, this is not needed since check_for_insert
         # should have been called. But its cheap, so why not.
@@ -617,7 +621,7 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        key = self._gen_key_tuple(row[self.column])
+        key = self._gen_key_tuple(row[self._column])
         tree_path = self._find_block2(key)
 
         leaf_id, leaf_index = tree_path[-1]

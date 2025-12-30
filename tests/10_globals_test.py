@@ -28,7 +28,7 @@ def test_collision(tmp_path) :
 
     retvals = ("M3IJW1290DEV2APF", "M3IJW1290DEV2APF", "9JI7BB6HW6253D12")
     gen_id_mock = Mock(side_effect=retvals)
-    with patch("gertrude.lib.heap._generate_heap_id", gen_id_mock) :
+    with patch("gertrude.lib.heap.generate_heap_id", gen_id_mock) :
         first = write(db_path, {"key" : "value"})
         second = write(db_path, {"key" : "value"})
         assert first == "M3IJW1290DEV2APF"

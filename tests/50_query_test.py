@@ -116,3 +116,16 @@ class TestQuery() :
         query = self.db.query("test").filter("not (name = 'alice')")
         data = list(query.run())
         assert data == [{"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
+
+    def test_index_query(self) :
+        table = self.db.add_table("test", [
+            cspec("id", "int", pk=True), cspec("name", "str")
+        ])
+
+        table.insert({"id" : 1, "name" : "bob"})
+        table.insert({"id" : 2, "name" : "alice"})
+        table.insert({"id" : 3, "name" : "charlie"})
+
+        query = self.db.query("test").filter("id >= 2")
+        data = list(query.run())
+        assert data == [{"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]

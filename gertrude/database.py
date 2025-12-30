@@ -103,7 +103,7 @@ class Database :
     def add_table(self, name : str, spec : Iterable[FieldSpec]) -> Table :
         if self.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
-        
+
         # Name okay?
         if not NAME_REGEX.match(name) :
             raise ValueError(f"Invalid table name {name}")
@@ -123,7 +123,7 @@ class Database :
     def drop_table(self, table_name : str) :
         if self.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
-        
+
         if table_name not in self.table_defs :
             raise ValueError(f"Table {table_name} does not exist.")
 
@@ -136,7 +136,7 @@ class Database :
 
         table = self.table_defs[table_name]
         table.add_index(index_name, column, **kwargs)
-    
+
     def drop_index(self, table_name : str, index_name : str) :
         if self.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
@@ -146,15 +146,15 @@ class Database :
     @property
     def cache_stats(self) :
         return self.db_ctx.cache.stats
-    
+
     def query(self, table_name : str) :
         if table_name not in self.table_defs :
             raise ValueError(f"Table {table_name} does not exist.")
-        
+
         return Query(self, table_name)
-    
+
     def table_list(self) :
         return list(self.table_defs.keys())
-    
-    def table(self, table_name : str) :
+
+    def table(self, table_name : str) -> Table :
         return self.table_defs[table_name]

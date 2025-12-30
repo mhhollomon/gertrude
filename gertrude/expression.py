@@ -1,7 +1,7 @@
 from lark import Lark
 from pathlib import Path
 from .transformer import ExprTransformer
-from .globals import ExprNode
+from .lib.expr_nodes import ExprNode
 
 import logging
 logger = logging.getLogger(__name__)

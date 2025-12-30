@@ -1,88 +1,53 @@
 from dataclasses import dataclass
 from typing import Any
 from lark import Transformer, v_args
-from .globals import ExprNode, Operation
+from .lib import expr_nodes as node
 
-import logging
 import operator as pyops
 
-
+import logging
 logger = logging.getLogger(__name__)
 
-@dataclass
-class ColumnName(ExprNode) :
-    name : str
-
-    def calc(self, row : dict[str, Any]) :
-        try :
-            return row[self.name]
-        except KeyError :
-            raise KeyError(f"Column {self.name} not found in row")
-
-    def to_python(self) :
-        return f"row['{self.name}']"
-
-@dataclass
-class Literal(ExprNode) :
-    value : Any
-    vtype : str
-
-    def calc(self, row : dict[str, Any]) :
-        return self.value
-
-    def to_python(self) :
-        return repr(self.value)
-
-@dataclass
-class MonoOperation(ExprNode) :
-    op : Any
-    arg : ExprNode
-
-    def calc(self, row : dict[str, Any]) :
-        return self.op(self.arg.calc(row))
-
-    def to_python(self) :
-        return f"{self.op.__name__}({self.arg.to_python()})"
 
 @v_args(inline=True)
 class ExprTransformer(Transformer) :
-    def value(self, x) -> ExprNode :
+    def value(self, x) -> node.ExprNode :
         return x
 
     def col_name(self, x) :
         logger.debug(f"col_name: {x}")
         if x.type == "DQ_STR" :
-            return ColumnName(x.value[1:-1])
-        return ColumnName(x.value)
+            return node.ColumnName(x.value[1:-1])
+        return node.ColumnName(x.value)
 
     def lit_str(self, x) :
-        return Literal(x.value[1:-1], 'str')
+        return node.Literal(x.value[1:-1], 'str')
     def lit_int(self, x) :
-        return Literal(int(x.value), 'int')
+        return node.Literal(int(x.value), 'int')
     def true(self, _) :
-        return Literal(True, 'bool')
+        return node.Literal(True, 'bool')
     def false(self, _) :
-        return Literal(False, 'bool')
+        return node.Literal(False, 'bool')
     def null(self, _) :
-        return Literal(None, 'null')
+        return node.Literal(None, 'null')
 
     def add(self, x, y) :
-        return Operation('math', pyops.add, x, y)
+        return node.Operation('math', pyops.add, x, y)
     def sub(self, x, y) :
-        return Operation('math', pyops.sub, x, y)
+        return node.Operation('math', pyops.sub, x, y)
     def mul(self, x, y) :
-        return Operation('math', pyops.mul, x, y)
+        return node.Operation('math', pyops.mul, x, y)
     def div(self, x, y) :
-        return Operation('math', pyops.truediv, x, y)
+        return node.Operation('math', pyops.truediv, x, y)
 
     def bnot(self, x) :
-        return MonoOperation(pyops.not_, x)
+        return node.MonoOperation(pyops.not_, x)
 
     def relop(self, left, op, right) :
-        return Operation('rel', op, left, right)
+        return node.Operation('rel', op, left, right)
 
     def logop(self, left, op, right) :
-        return Operation('log', op, left, right)
+        return node.Operation('log', op, left, right)
 
     def RELOPERATOR(self, x) :
         if x.value == "=" :

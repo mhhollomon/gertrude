@@ -233,13 +233,38 @@ db.add_table("my_table", [
   cspec("salary", "float"),
   cspec("bonus", "float")
 ])
-query = db.query("my_table").filter(("dept = 'sales'"))\
+query = db.query("my_table").filter("dept = 'sales'")\
     .add_column("name", "last_name + ', ' + first_name")\
     .sort("name")\
     .select("name", ("total comp", "salary + bonus"))
 
 data = query.run()
 ```
+
+The query planner is still very primitive and mostly works through
+the query steps as the are given in the query.
+
+However, it will optimize to use an index scan rather than a whole
+table scan if the first operation is a filter that only accesses one
+column on which there is an index.
+```python
+db.add_table("my_table", [cspec("id", "int", unique=True), cpsec("name", "str")])
+q = db.query("my_table").filter("id > 3")
+```
+In the above case, the automatically created index on `id` will be used.
+
+It will **not** use the index if there is a compound filter (e.g. "id < 3 and id >10")
+or if some other operation comes before the filter - even if it is another filter.
+
+```python
+db.add_table("my_table", [cspec("id", "int", unique=True), cpsec("name", "str")])
+
+# None of these will use the index scan
+q = db.query("my_table").filter("id > 3 and id > 10")
+q = db.query("my_table").filter("name = 'bob'").filter("id > 3")
+
+```
+
 ### filter
 
 A filter is an expression that yields a boolean. Rows are kept if
@@ -373,7 +398,10 @@ Fan out will be 1000 (probably).
 
 ## TODO
 - joins
-- Use index in queries
+- allow reordering of filters when safe to do so.
+- expressions
+    - case statement
+    - between
 
 - Create a configuration framework.
 - Figure out multi-key indexes.
@@ -388,3 +416,4 @@ Fan out will be 1000 (probably).
 - [msgpack](https://github.com/msgpack/msgpack-python/) is used to store data.
 - [lark](https://lark-parser.readthedocs.io/en/stable/index.html) for parsing
   query expressions.
+- [pytest](https://docs.pytest.org/en/stable/) for automated testing.
