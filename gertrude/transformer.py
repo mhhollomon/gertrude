@@ -14,7 +14,10 @@ class ColumnName(ExprNode) :
     name : str
 
     def calc(self, row : dict[str, Any]) :
-        return row[self.name]
+        try :
+            return row[self.name]
+        except KeyError :
+            raise KeyError(f"Column {self.name} not found in row")
 
     def to_python(self) :
         return f"row['{self.name}']"
@@ -29,7 +32,17 @@ class Literal(ExprNode) :
 
     def to_python(self) :
         return repr(self.value)
-    
+
+@dataclass
+class MonoOperation(ExprNode) :
+    op : Any
+    arg : ExprNode
+
+    def calc(self, row : dict[str, Any]) :
+        return self.op(self.arg.calc(row))
+
+    def to_python(self) :
+        return f"{self.op.__name__}({self.arg.to_python()})"
 
 @v_args(inline=True)
 class ExprTransformer(Transformer) :
@@ -52,7 +65,7 @@ class ExprTransformer(Transformer) :
         return Literal(False, 'bool')
     def null(self, _) :
         return Literal(None, 'null')
-    
+
     def add(self, x, y) :
         return Operation('math', pyops.add, x, y)
     def sub(self, x, y) :
@@ -61,13 +74,16 @@ class ExprTransformer(Transformer) :
         return Operation('math', pyops.mul, x, y)
     def div(self, x, y) :
         return Operation('math', pyops.truediv, x, y)
-    
+
+    def bnot(self, x) :
+        return MonoOperation(pyops.not_, x)
+
     def relop(self, left, op, right) :
         return Operation('rel', op, left, right)
-    
+
     def logop(self, left, op, right) :
         return Operation('log', op, left, right)
-    
+
     def RELOPERATOR(self, x) :
         if x.value == "=" :
             return pyops.eq
@@ -83,7 +99,7 @@ class ExprTransformer(Transformer) :
             return pyops.ne
         else :
             raise ValueError(f"Unknown relational operator {x.value}")
-    
+
     def LOGOPERATOR(self, x) :
         if x.value == "and" :
             return pyops.and_

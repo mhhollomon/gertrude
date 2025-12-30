@@ -25,8 +25,6 @@ class Query:
         expr : List[ExprNode] = []
         for c in conditions :
             e = expr_parse(c)
-            if not isinstance(e, Operation) or e.category not in ('log', 'rel') :
-                raise ValueError(f"Invalid filter expression {c}")
             expr.append(e)
         self.steps.append(Step(STEP_TYPE.FILTER, expr))
         return self
