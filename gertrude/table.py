@@ -2,13 +2,14 @@
 from pathlib import Path
 from typing import Dict, Iterable, Any
 import json
-import msgpack
 import shutil
 import logging
 
+from .lib import heap
+
 from .globals import (
     NAME_REGEX, DBContext,
-    TYPES, _generate_id,
+    TYPES,
     _Row, FieldSpec
     )
 
@@ -24,46 +25,6 @@ OPT_DEFAULT = {
 def cspec(name : str, type : str, **kwargs) :
     return FieldSpec(name, type, kwargs)
 
-def _save_to_heap(heap : Path, value : Any) -> str :
-    """Saves to the heap pointed to by the path.
-    Checks for path collisions.
-    Returns the hash_id.
-    """
-    while True :
-        hash_id = _generate_id()
-        proposed_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
-        if not proposed_path.exists():
-            break
-
-    proposed_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with proposed_path.open("wb") as f:
-        msgpack.dump(value, f)
-
-    return hash_id
-
-def _read_from_heap(heap : Path, hash_id : str) -> Any :
-    heap_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
-
-    if not heap_path.exists():
-        return None
-
-    return msgpack.unpackb(heap_path.read_bytes())
-
-def _delete_from_heap(heap : Path, hash_id : str) -> Any :
-    """ Note that the hash_id is not validated nor are any
-    empty directories removed.
-    """
-    heap_path = heap / hash_id[0:2] / hash_id[2: 4] / hash_id[4:]
-
-    if not heap_path.exists():
-        return None
-
-    retval = msgpack.unpackb(heap_path.read_bytes())
-
-    heap_path.unlink()
-
-    return retval
 
 
 logger = logging.getLogger(__name__)
@@ -163,7 +124,7 @@ class Table :
                 heap_id = entry.parent.name + heap_id
                 heap_id = entry.parent.parent.name + heap_id
 
-                data = msgpack.unpackb(entry.read_bytes())
+                data = heap.read(self.db_path / "data", heap_id)
                 record = _Row.from_storage(self.spec, data)
                 yield (heap_id,record)
 
@@ -244,7 +205,7 @@ class Table :
             if not success :
                 raise ValueError(f"Failed to insert record: {msg}")
 
-        heap_id = _save_to_heap(self.db_path / "data", record_object.to_storage())
+        heap_id = heap.write(self.db_path / "data", record_object.to_storage())
 
         for index in self.index.values() :
             index.insert(record_object, heap_id)
@@ -262,7 +223,7 @@ class Table :
             raise ValueError(f"Table {self.name} is closed.")
 
         for block in self.index[name].scan(key, key_bound, include_key) :
-            row = _Row.from_storage(self.spec, _read_from_heap(self.db_path / "data", block))
+            row = _Row.from_storage(self.spec, heap.read(self.db_path / "data", block))
             yield row
 
 
@@ -278,7 +239,7 @@ class Table :
         for block_id, record in self._data_iter() :
             if record == victim :
                 logger.debug(f"Deleting record{record}")
-                _delete_from_heap(self.db_path / "data", block_id)
+                heap.delete(self.db_path / "data", block_id)
                 for index in self.index.values() :
                     index.delete(row)
                 return True

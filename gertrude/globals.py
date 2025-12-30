@@ -1,18 +1,14 @@
 from dataclasses import dataclass
 from enum import Enum
 import regex as re
-from nanoid import generate
 from pathlib import Path
-from typing import Any, Callable, NamedTuple, Tuple
+from typing import Any, Callable, NamedTuple
 from abc import ABC, abstractmethod
 
 GERTRUDE_VERSION = "0.0.1"
 CURRENT_SCHEMA_VERSION = 1
 
-HEAP_ID_ALPHABET = '123456789ABCDEFGHIJKLMNPQRSTUVWXYZ'
-HEAP_ID_LENGTH = 20
-
-NAME_REGEX = re.compile(r'^[a-zA-Z0-9_-]+$')
+NAME_REGEX = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 
 TYPES = {
     "str" : str,
@@ -43,8 +39,6 @@ class DBContext :
     def generate_id(self) -> int :
         return self.id_gen.gen_id()
 
-def _generate_id():
-    return generate(alphabet=HEAP_ID_ALPHABET, size=HEAP_ID_LENGTH)
 
 class STEP_TYPE(Enum) :
     READ = 0
