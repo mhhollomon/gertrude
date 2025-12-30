@@ -1,8 +1,26 @@
 # gertrude
-python database where each row is represented by a file.
+python database where each row is represented by a file. query language is a
+mix of something like `pyspark` and `SQL`
 
 I am creating this as an exercise. I would not use it for anything remotely
 important.
+
+# Building
+Not currently on pypi or such, so will need to use the following to build
+and install.
+
+```sh
+$ git clone https://github.com/mhhollomon/gertrude
+$ cd gertrude
+$ python -m venv .venv
+$ . .venv/bin/activate
+$ pip install -r requirements.txt
+$ flit build
+# cd to your project
+# and activate its virtual environment
+$ . .venv/bin/activate
+$ pip install /path/to/gertrude/dist/gertrude-0.0.1-py2.py3-none-any.whl
+```
 
 # API
 ## Database
@@ -34,6 +52,14 @@ This is the directory that contins the `gertrude` database you wish to open.
 #### mode
 One of the string `'rw'` (for read/write) or `'ro'` (for read-only).
 
+Operations not allowed in read-only mode
+- add_table
+- drop_table
+- add_index
+- drop_index
+- insert
+- delete
+
 ## Tables
 
 ### Table creation
@@ -43,7 +69,7 @@ db.add_table(name="my_table", spec=[cspec('col1', 'str', pk=True), cspec('col2',
 ```
 #### name
 The name of the table. Must match the regular expression :
-`^[a-zA-Z0-9_-]+$'`
+`^[a-zA-Z_][a-zA-Z0-9_]*$'`
 
 #### spec
 This is the column specifications.
@@ -67,7 +93,7 @@ Raises a ValueError if the database is in Read-Only mode or if the table does no
 
 ### Index creation
 ```python
-db.add_index(table_name="my_table", index_name="my-index", column="col2")
+db.add_index(table_name="my_table", index_name="my_index", column="col2")
 ```
 
 `index_name` must match the same regular expression as table names. It must
@@ -77,7 +103,7 @@ A given column may only have one index.
 
 ### Index Deletion
 ```python
-db.drop_index(table_name="my_table", index_name="my-index")
+db.drop_index(table_name="my_table", index_name="my_index")
 ```
 
 Raises a ValueError if the database is in Read-Only mode or if the table
@@ -162,8 +188,8 @@ for row in table.scan() :
 ```
 
 ### index_scan()
-Scan the table in index order rather than table order. Also, a key may given as a lower
-or upper bound.
+Scan the table in index order rather than table order. Also, a key may be given
+as a bound.
 
 ```python
 from gertrude import KeyBound
@@ -220,16 +246,16 @@ A filter is an expression that yields a boolean. Rows are kept if
 the filter returns True for the row. c.f. expressions below
 
 ### add_column/select
-These two shape the output data. Select will output those quantities
+These two shape the output data. Select will only output those quantities
 (table columns and computed columns) mentioned. `add_column` keeps all
 fields currently in the data and adds the one specified. It can override
 an existing column if needed.
 
 the spec for `select` is one or more of the following.
 - The name of a column currently in the data
-- A tuple consistion of :
-    - The name of a column to place in the data
-    - An expression string to compute the value
+- A tuple consisting of :
+    - The name of a column to place in the data.
+    - An expression string to compute the value.
 
 ### sort
 List of one or more keys in the data on which to sort.
@@ -240,11 +266,13 @@ List of one or more keys in the data on which to sort.
 - column name in double quotes. (This can be used to select
   columns that were created by select or add_column that don't
   match the criteria for a column name).
-- "+ - * /" normal operator precedents applies. '+' can be used
+- "+ - * /" normal operator precedence applies. '+' can be used
   with string to concatenate.
 - Any of the above in parentheses.
 - Comparision operators "=", "<", ">", "<=", "=>", "!="
 - logical operators "and", "or"
+- "not" operator - Note that this binds rather tightly, so most expression will
+  need to use paretheses.
   The operators shortcut.
 
 # Data layout
@@ -277,7 +305,7 @@ Directory that contains subdirectories for each of the indexes. See below.
 ## data (heap) directory
 Each row is represented by a msgpack file. Each row is assigned a 20
 character heap_id using [nanoid](https://github.com/puyuan/py-nanoid) using
-the custom alphabet of `123456789ABCDEFGHIJKLMNPQRSTUVWXYZ`
+the custom alphabet of `0123456789ABCDEF`
 
 Only upper case letters are used to give a fighting chance this works on case
 insensitive file systems (eg windows).
@@ -287,11 +315,8 @@ The 20 characters of the heap_id are split into 3 parts (`/XX/YY/[16 chars]`)
 - A lower directory name of the next 2 characters
 - A file name of the last 16 characters.
 
-In theory, this means each directory could have 1100+ entries. So, may need to
-rethink this.
-
 Note that because of the structure, there is no "primary key" - all indexes are
-equivalent in terms of speed (all suck).
+equivalent in terms of speed.
 
 ### row delete
 The file is deleted and the indexes are updated.
@@ -302,7 +327,7 @@ A new hash_id is assigned and all indexes are updated.
 ## Index subdirectory
 The subdirectory is named after the index itself. A B+ Tree structure is maintained.
 A tree node is represented by a file. Each file is given an integer id that that is
-also it namel
+also it name.
 
 The root node is `000`.
 
@@ -332,12 +357,12 @@ Fan out will be 1000 (probably).
         - table1
             - config
             - data
-                - X1
+                - 51
                     - 23
-                        - M3IJW1290DEV2APF
-                - 29
-                    - MJ
-                        - 9JI7BB6HW6253D12
+                        - E3IFD1290DEA2ACF
+                - 2F
+                    - 10
+                        - 9F07BB6EF6253D12
             - index
                 - my_index
                     - 000
@@ -347,23 +372,19 @@ Fan out will be 1000 (probably).
             - ...
 
 ## TODO
-- Add query capabilities
-  - projection
-    - simple column with rename.
-    - literals.
-    - column expressions.
-  - filtering
-  - joins
+- joins
+- Use index in queries
 
 - Create a configuration framework.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
-- Add actual logging.
 - Handle missing insert values.
 - Check typing on insert values.
 - Create a way to give defaults for inserts.
 
 ## Technologies
-- [Flit](https://flit.pypa.io/en/stable/) - Python packaging
-- [Nanoid](https://github.com/puyuan/py-nanoid) is used to generate row IDs.
+- [Flit](https://flit.pypa.io/en/stable/) - Python packaging/building.
+- [Nanoid](https://github.com/puyuan/py-nanoid) is used to generate row heap IDs.
 - [msgpack](https://github.com/msgpack/msgpack-python/) is used to store data.
+- [lark](https://lark-parser.readthedocs.io/en/stable/index.html) for parsing
+  query expressions.
