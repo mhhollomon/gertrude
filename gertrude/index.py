@@ -249,8 +249,8 @@ class Index :
             i = bisect_func(next_node.d, key, key=lambda x : tuple(x[0]))
             logger.debug(f"_find_block2: leaf i = {i}")
             check_index = i if lower_bound else i-1
-            if i >= len(next_node.d) or tuple(next_node.d[check_index][0]) != key :
-                i = _INVALID_INDEX
+            # if i >= len(next_node.d) or tuple(next_node.d[check_index][0]) != key :
+            #     i = _INVALID_INDEX
             retval += [tpi(next_block_id, i)]
 
         logger.debug(f"_find_block2: returning {retval}")
