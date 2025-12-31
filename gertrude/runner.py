@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator
+from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp
 from .table import Table
 
 from .globals import _Row
@@ -66,7 +66,7 @@ class QueryRunner :
                 retval.append(row)
         return retval
 
-    def _test_filter_for_index(self, filter : QueryOp, table : Table) -> RowGenerator | None :
+    def _test_filter_for_index(self, filter : QueryOp, table : Table) -> tuple[RowGenerator, str] | None :
         if filter.op != OpType.filter :
             # really this is just to get the type system to hush.
             return None
@@ -81,7 +81,9 @@ class QueryRunner :
             key = expr.right.calc({})
             index_name = table.find_index_for_column(expr.left.name)
             logger.debug(f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name()}")
-            return table.index_scan(index_name, key, op=expr.name()) # type: ignore
+            scan= table.index_scan(index_name, key, op=expr.name()) # type: ignore
+            description = f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name()}"
+            return scan, description
         else :
              return None
 
@@ -109,16 +111,18 @@ class QueryRunner :
 
         if len(self.steps) > 1 :
             step_index += 1
-            scan = self._test_filter_for_index(self.steps[step_index], table)
-            if scan is None :
+            scan_return = self._test_filter_for_index(self.steps[step_index], table)
+            if scan_return is None :
                 step_index -= 1
                 logger.debug(f"Using table scan to read table {table_name}")
-                scan = table.scan()
+                new_plan.append(ScanOp(table.scan(), f"table scan of {table_name}"))
+            else :
+                scan, description = scan_return
+                new_plan.append(ScanOp(scan, description))
         else :
             logger.debug(f"Using table scan to read table {table_name}")
-            scan = table.scan()
+            new_plan.append(ScanOp(table.scan(), f"table scan of {table_name}"))
 
-        new_plan.append(QueryOp(OpType.scan, scan))
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
 

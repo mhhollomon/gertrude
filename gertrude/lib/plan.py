@@ -20,7 +20,7 @@ class QueryOp :
     data : Any
 
     def __str__(self) :
-        return f"QueryOp({self.op.value}, {self.data})"
+        return f"{self.op.value}({self.data})"
 
 type QueryPlan = List[QueryOp]
 type RowGenerator = Generator[_Row, Any, None]
@@ -34,8 +34,19 @@ class ReadOp(QueryOp) :
     def table_name(self) -> str :
         return self.data
 
-    def __str__(self) :
-        return f"ReadOp('{self.data}')"
-
     def __repr__(self) :
         return f"ReadOp('{self.data}')"
+
+class ScanOp(QueryOp) :
+    def __init__(self, data : RowGenerator, description : str = "") :
+        super().__init__(OpType.scan, data)
+        self.description_ = description
+
+    @property
+    def description(self) :
+        return self.description_
+
+    def __str__(self) :
+        if self.description == "" :
+            return super().__str__()
+        return f"{self.op.value}({self.description})"
