@@ -192,8 +192,6 @@ Scan the table in index order rather than table order. Also, a key may be given
 as a bound.
 
 ```python
-from gertrude import KeyBound
-
 table = db.table("my_table")
 
 # Scan all the rows in the table, but in index order.

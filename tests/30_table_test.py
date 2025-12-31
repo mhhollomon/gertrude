@@ -1,4 +1,4 @@
-from gertrude import Database, cspec, KeyBound
+from gertrude import Database, cspec
 import logging
 
 def test_delete_row_no_index(caplog, tmp_path) :

@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Generator, List, cast
 
-from gertrude.index import KeyBound
 from gertrude.table import Table
 from .database import Database
 

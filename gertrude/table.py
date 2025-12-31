@@ -13,7 +13,7 @@ from .globals import (
     _Row, FieldSpec
     )
 
-from .index import Index, KeyBound
+from .index import Index
 
 
 OPT_DEFAULT = {

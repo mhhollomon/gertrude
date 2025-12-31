@@ -32,11 +32,6 @@ type TreePath = List[tpi]
 
 _INVALID_INDEX = -10
 
-class KeyBound(Enum) :
-    NONE = 0
-    LOWER = 1
-    UPPER = 2
-
 OPERATOR_MAP = {
     'gt' : 'gt',
     'ge' : 'ge',
@@ -256,6 +251,9 @@ class Index :
         logger.debug(f"_find_block2: returning {retval}")
         return retval
 
+    #################################################################
+    # FIND_BLOCK
+    #################################################################
     def _find_block(self, key : KeyTuple, parent : Optional[InternalNode] = None) -> TreePath :
         """Returns the path to the leaf node where the key might be stored.
         Each entry in the list is a tuple (block_id, index).
