@@ -1,9 +1,6 @@
-from dataclasses import dataclass
-from enum import Enum
 import regex as re
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
-from abc import ABC, abstractmethod
+from typing import Any, NamedTuple
 
 GERTRUDE_VERSION = "0.0.2"
 CURRENT_SCHEMA_VERSION = 1
@@ -39,18 +36,6 @@ class DBContext :
     def generate_id(self) -> int :
         return self.id_gen.gen_id()
 
-
-class STEP_TYPE(Enum) :
-    READ = 0
-    FILTER = 1
-    SELECT = 2
-    SORT = 3
-    ADD_COLUMN = 4
-    DISTINCT = 5
-
-class Step(NamedTuple) :
-    type : STEP_TYPE
-    data : Any
 
 FieldSpec = NamedTuple("FieldSpec", [("name", str), ("type", str), ("options", dict[str, Any])])
 

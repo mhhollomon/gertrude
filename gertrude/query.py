@@ -1,7 +1,6 @@
 from typing import Any, List, Self, Tuple, cast
 
 from .expression import expr_parse
-from .globals import Step, STEP_TYPE
 
 from .lib.expr_nodes import ExprNode
 from .lib import plan
