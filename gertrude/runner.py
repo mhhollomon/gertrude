@@ -1,34 +1,16 @@
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Generator, List, cast
+from typing import Any, cast
 
-from gertrude.table import Table
-from .database import Database
+from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator
+from .table import Table
 
-from .globals import _Row, Step, STEP_TYPE
+from .globals import _Row
 from .lib import expr_nodes as node
 
 import logging
 logger = logging.getLogger(__name__)
 
-class OpType(Enum) :
-    scan = "scan"
-    filter = "filter"
-    select = "select"
-    add_column = "add_column"
-    sort = "sort"
-    distinct = "distinct"
-
-@dataclass
-class QueryOp :
-    op : OpType
-    data : Any
-
-type QueryPlan = List[QueryOp]
-type RowGenerator = Generator[_Row, Any, None]
-
 class QueryRunner :
-    def __init__(self, db : Database, steps : list[Step]) :
+    def __init__(self, db : Any, steps : QueryPlan) :
         self.db = db
         self.steps = steps
 
@@ -84,8 +66,8 @@ class QueryRunner :
                 retval.append(row)
         return retval
 
-    def _test_filter_for_index(self, filter : Step, table : Table) -> RowGenerator | None :
-        if filter.type != STEP_TYPE.FILTER :
+    def _test_filter_for_index(self, filter : QueryOp, table : Table) -> RowGenerator | None :
+        if filter.op != OpType.filter :
             # really this is just to get the type system to hush.
             return None
         expr = filter.data[0]
@@ -104,20 +86,23 @@ class QueryRunner :
              return None
 
     def plan(self) -> QueryPlan:
+        from .database import Database
+
+        db = cast(Database, self.db)
+
         logger.debug(f"Planning query with steps {self.steps}")
 
-        plan : QueryPlan = []
+        new_plan : QueryPlan = []
 
 
         step_index = 0
-        logger.debug(f"step_index = {step_index}")
         step = self.steps[step_index]
 
-        if step.type != STEP_TYPE.READ :
+        if step.op != OpType.read :
             raise ValueError("First step must be read")
 
         table_name = step.data
-        table = self.db.table(table_name=table_name)
+        table = db.table(table_name=table_name)
 
         if table is None :
             raise ValueError(f"Table {table_name} does not exist.")
@@ -133,25 +118,13 @@ class QueryRunner :
             logger.debug(f"Using table scan to read table {table_name}")
             scan = table.scan()
 
-        plan.append(QueryOp(OpType.scan, scan))
+        new_plan.append(QueryOp(OpType.scan, scan))
+        if step_index < len(self.steps)-1 :
+            new_plan.extend(self.steps[step_index+1:])
 
-        for s in self.steps[step_index + 1:] :
-            if s.type == STEP_TYPE.FILTER :
-                plan.append(QueryOp(OpType.filter, s.data))
-            elif s.type == STEP_TYPE.SELECT :
-                plan.append(QueryOp(OpType.select, s.data))
-            elif s.type == STEP_TYPE.ADD_COLUMN :
-                plan.append(QueryOp(OpType.add_column, s.data))
-            elif s.type == STEP_TYPE.SORT :
-                plan.append(QueryOp(OpType.sort, s.data))
-            elif s.type == STEP_TYPE.DISTINCT :
-                plan.append(QueryOp(OpType.distinct, s.data))
-            else :
-                raise ValueError(f"Unknown step type {s.type}")
+        return new_plan
 
-        return plan
-
-    def run(self) :
+    def run(self) -> list[dict[str, Any]] :
         logger.debug(f"Running query with steps {self.steps}")
 
         plan = self.plan()
@@ -161,3 +134,11 @@ class QueryRunner :
             data = self.ops[op.op](op, data)
 
         return data
+
+    def show_plan(self) -> list[str] :
+        plan = self.plan()
+        retval : list[str] = []
+        for op in plan :
+            retval.append(str(op))
+
+        return retval

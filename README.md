@@ -1,9 +1,9 @@
 # gertrude
-python database where each row is represented by a file. query language is a
-mix of something like `pyspark` and `SQL`
+python database where each row is represented by a file. The query language is a
+mix of something like `pyspark` and `SQL`.
 
 I am creating this as an exercise. I would not use it for anything remotely
-important.
+important - at least not yet.
 
 # Building
 Not currently on pypi or such, so will need to use the following to build
@@ -228,6 +228,10 @@ table.delete({'col1' : 1})
 ```
 ## Query
 Queries always start from the database object.
+Queries are built up of calss to operators (which are listed below).
+The data is not computed until the `run()` operator is called. `run()`
+can be called multiple times on the same query.
+
 ```python
 db.add_table("my_table", [
   cspec("first_name", "str"),
@@ -241,7 +245,7 @@ query = db.query("my_table").filter("dept = 'sales'")\
     .sort("name")\
     .select("name", ("total comp", "salary + bonus"))
 
-# The data is not computed until the .run() nemethod is called.
+# The data is not computed until the .run() method is called.
 data = query.run()
 ```
 
@@ -299,6 +303,23 @@ q = db.query("my_table").distinct()
 q2 = db.query("my_table").distinct("id")
 ```
 
+## show_plan
+returns a list of strings that represents the plan the runner
+will use to compute the query.
+
+The query can still be run afterward.
+
+*Note* - This output should not be considered stable and may change even between
+patch levels.
+```python
+q = db.query("my_table").filter("id > 3").sort("name")
+plan = q.show_plan()
+print("\n".join(plan))
+
+# can still be run if needed.
+data = q.run()
+...
+```
 ### expression
 
 - bare column name
@@ -310,9 +331,9 @@ q2 = db.query("my_table").distinct("id")
 - Any of the above in parentheses.
 - Comparision operators "=", "<", ">", "<=", "=>", "!="
 - logical operators "and", "or"
-- "not" operator - Note that this binds rather tightly, so most expression will
-  need to use paretheses.
   The operators shortcut.
+- "not" operator - Note that this binds rather tightly, so most expressions will
+  need to use parentheses.
 
 # Data layout
 A gertrude database is a directory.
@@ -323,7 +344,7 @@ JSON file with top level configuration. Keys include :
 
 - schema_version - The version of the data layout used.
 - gertrude_version - The version of gertrude that created the database.
-- comment.
+- comment - comment string given when the database was created.
 
 ### tables
 A directory that contains a sub directory for each table.
