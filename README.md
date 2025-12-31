@@ -241,11 +241,12 @@ query = db.query("my_table").filter("dept = 'sales'")\
     .sort("name")\
     .select("name", ("total comp", "salary + bonus"))
 
+# The data is not computed until the .run() nemethod is called.
 data = query.run()
 ```
 
 The query planner is still very primitive and mostly works through
-the query steps as the are given in the query.
+the query steps as they are given in the query.
 
 However, it will optimize to use an index scan rather than a whole
 table scan if the first operation is a filter that only accesses one
@@ -287,6 +288,16 @@ the spec for `select` is one or more of the following.
 
 ### sort
 List of one or more keys in the data on which to sort.
+
+### distinct
+Return unique rows from the dataset. If no column names are given,
+it will use all the keys in the rows as they exist at the time of
+operation. If column names are given, only those columns are considered
+when deciding on uniqueness.
+```python
+q = db.query("my_table").distinct()
+q2 = db.query("my_table").distinct("id")
+```
 
 ### expression
 

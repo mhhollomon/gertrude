@@ -46,6 +46,7 @@ class STEP_TYPE(Enum) :
     SELECT = 2
     SORT = 3
     ADD_COLUMN = 4
+    DISTINCT = 5
 
 class Step(NamedTuple) :
     type : STEP_TYPE

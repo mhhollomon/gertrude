@@ -17,6 +17,7 @@ class OpType(Enum) :
     select = "select"
     add_column = "add_column"
     sort = "sort"
+    distinct = "distinct"
 
 @dataclass
 class QueryOp :
@@ -36,7 +37,8 @@ class QueryRunner :
             OpType.filter : self.filter,
             OpType.select : self.select,
             OpType.add_column : self.add_column,
-            OpType.sort : self.sort
+            OpType.sort : self.sort,
+            OpType.distinct : self.distinct,
         }
 
     def scan(self, scan : QueryOp, _ : list[dict] | RowGenerator) -> RowGenerator :
@@ -64,6 +66,22 @@ class QueryRunner :
         retval = sorted(data, key=lambda row : tuple(tuple(row[c] for c in sort.data)))
         if isinstance(retval[0], _Row) :
             retval = [ x._asdict() if isinstance(x, _Row) else x for x in retval ]
+        return retval
+
+    def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
+        logger.debug(f"Distinct by {distinct.data}")
+        seen : set[tuple] = set()
+        retval : list[dict] = []
+        keys = cast(list[str], distinct.data)
+        for row in data :
+            if isinstance(row, _Row) :
+                row = row._asdict()
+            if len(keys) == 0 :
+                keys = list(row.keys())
+            key = tuple(row[c] for c in keys)
+            if key not in seen :
+                seen.add(key)
+                retval.append(row)
         return retval
 
     def _test_filter_for_index(self, filter : Step, table : Table) -> RowGenerator | None :
@@ -126,6 +144,10 @@ class QueryRunner :
                 plan.append(QueryOp(OpType.add_column, s.data))
             elif s.type == STEP_TYPE.SORT :
                 plan.append(QueryOp(OpType.sort, s.data))
+            elif s.type == STEP_TYPE.DISTINCT :
+                plan.append(QueryOp(OpType.distinct, s.data))
+            else :
+                raise ValueError(f"Unknown step type {s.type}")
 
         return plan
 

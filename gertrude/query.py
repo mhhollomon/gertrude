@@ -43,6 +43,10 @@ class Query:
         self.steps.append(Step(STEP_TYPE.SORT, columns))
         return self
 
+    def distinct(self, *columns : str) -> Self :
+        self.steps.append(Step(STEP_TYPE.DISTINCT, columns))
+        return self
+
     def run(self) :
         # These need to be scoped due to circular dependencies
 

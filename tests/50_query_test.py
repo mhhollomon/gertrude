@@ -129,3 +129,21 @@ class TestQuery() :
         query = self.db.query("test").filter("id >= 2")
         data = list(query.run())
         assert data == [{"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]
+
+    def test_distinct_query(self) :
+        table = self.db.add_table("test", [
+            cspec("id", "int"), cspec("name", "str")
+        ])
+
+        table.insert({"id" : 1, "name" : "bob"})
+        table.insert({"id" : 2, "name" : "alice"})
+        table.insert({"id" : 3, "name" : "bob"})
+
+        query = self.db.query("test").sort("name").distinct("name")
+        data = list(query.run())
+        assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}]
+
+        query = self.db.query("test").sort("id","name").distinct()
+        data = list(query.run())
+        assert data == [{"id" : 1, "name" : "bob"}, {"id" : 2, "name" : "alice"},
+                        {"id" : 3, "name" : "bob"}]
