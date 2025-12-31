@@ -228,15 +228,17 @@ class Table :
         for record in self._data_iter() :
             yield record[1]
 
-    def index_scan(self, name : str, key : Any = None, key_bound : KeyBound = KeyBound.NONE, include_key : bool = True) :
+    def index_scan(self, name : str, key : Any = None, op : str | None = None) :
         if name not in self.index :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        for block in self.index[name].scan(key, key_bound, include_key) :
+        for block in self.index[name].scan(key, op) :
             row = _Row.from_storage(self.spec, heap.read(self.db_path / "data", block))
             yield row
+
+
 
 
     def print_index(self, name : str) :

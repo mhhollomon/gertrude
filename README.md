@@ -201,18 +201,23 @@ for r in table.index_scan("my_index")
     ...
 
 # Scan for rows that are less than or equal to the key
-for r in table.index_scan("my_index", key=42, key_bound=KeyBound.UPPER)
+for r in table.index_scan("my_index", key=42, op="<=")
     ...
 # Scan for rows that are strictly less than the key
-for r in table.index_scan("my_index", key=42, key_bound=KeyBound.UPPER, include_key=False)
+for r in table.index_scan("my_index", key=42, op="<")
     ...
 # Scan for rows that are greater than or equal to the key
-for r in table.index_scan("my_index", key=42, key_bound=KeyBound.LOWER)
+for r in table.index_scan("my_index", key=42, op=">=")
     ...
 # Scan for rows that are strictly greater than the key
-for r in table.index_scan("my_index", key=42, key_bound=KeyBound.LOWER, include_key=False)
+for r in table.index_scan("my_index", key=42, op=">")
+    ...
+# Scan for rows that are equal to the key
+for r in table.index_scan("my_index", key=42, op="=")
     ...
 ```
+
+The operator name equivalents `le`, `lt`, `ge`, `gt`, `eq` may also be used.
 
 ### delete()
 Delete a row using an object. Method returns `True` if a row was deleted.
@@ -253,14 +258,14 @@ q = db.query("my_table").filter("id > 3")
 ```
 In the above case, the automatically created index on `id` will be used.
 
-It will **not** use the index if there is a compound filter (e.g. "id < 3 and id >10")
+It will **not** use the index if there is a compound filter (e.g. "id < 3 and id > 10")
 or if some other operation comes before the filter - even if it is another filter.
 
 ```python
 db.add_table("my_table", [cspec("id", "int", unique=True), cpsec("name", "str")])
 
 # None of these will use the index scan
-q = db.query("my_table").filter("id > 3 and id > 10")
+q = db.query("my_table").filter("id > 3 and id < 10")
 q = db.query("my_table").filter("name = 'bob'").filter("id > 3")
 
 ```

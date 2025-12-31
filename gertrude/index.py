@@ -1,4 +1,4 @@
-from bisect import bisect_left, insort
+from bisect import bisect_left, insort, bisect_right
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
@@ -21,11 +21,14 @@ type DataList = List[Tuple[KeyTuple, int]]
 # use by leaf nodes
 type LeafData = List[Tuple[KeyTuple, str]]
 
+class tpi(NamedTuple) :
+    block_id : int
+    index : int
 # List of tuple (block_id, index)
 # zeroth entry will always be (0, _INVALID_INDEX)
 # Middle entries will always be (internal_block_id, index_into_parent)
 # The last entry will always be (leaf_block_id, index_into_parent)
-type TreePath = List[Tuple[int, int]]
+type TreePath = List[tpi]
 
 _INVALID_INDEX = -10
 
@@ -33,6 +36,20 @@ class KeyBound(Enum) :
     NONE = 0
     LOWER = 1
     UPPER = 2
+
+OPERATOR_MAP = {
+    'gt' : 'gt',
+    'ge' : 'ge',
+    'lt' : 'lt',
+    'le' : 'le',
+    'eq' : 'eq',
+    'eq_' : 'eq',
+    '='  : 'eq',
+    '>=' : 'ge',
+    '<=' : 'le',
+    '>'  : 'gt',
+    '<'  : 'lt',
+}
 
 @dataclass
 class LeafNode :
@@ -192,14 +209,20 @@ class Index :
         else :
             return False, -1
 
-    def _find_block2(self, key : KeyTuple, parent : Optional[InternalNode] = None) -> TreePath :
+    #################################################################
+    # FIND_BLOCK2
+    #################################################################
+    def _find_block2(self, key : KeyTuple,
+                     parent : Optional[InternalNode] = None,
+                     lower_bound : bool = True) -> TreePath :
+        bisect_func = bisect_left if lower_bound else bisect_right
         retval : TreePath = []
         if parent is None :
             parent = self._read_root()
-        logger.debug(f"Finding pointer in block {parent.n} for key = '{key}'")
-        i = bisect_left(parent.d, key, lo=1, key=lambda x : tuple(x[0]))
-        logger.debug(f"raw i = {i}")
-        logger.debug(f"raw i = {i}")
+        logger.debug(f"_find_block2: Finding pointer in block {parent.n} for key = '{key}'")
+        logger.debug(f"_find_block2: lower_bound = {lower_bound}")
+        i = bisect_func(parent.d, key, lo=1, key=lambda x : tuple(x[0]))
+        logger.debug(f"_find_block2: raw i = {i}")
         # if the index is 1, it is either because we need to
         # look at the block at index 1 or we need to look at
         # the block at index 0.
@@ -212,20 +235,25 @@ class Index :
                 i = 0
         elif i == len(parent.d) or tuple(parent.d[i][0]) > key :
             i -= 1
-        logger.debug(f"final i = {i}")
+        logger.debug(f"_find_block2: final i = {i}")
         next_block_id = parent.d[i][1]
-        retval += [(parent.n, i)]
-        maybe_leaf = self._read_node(next_block_id)
-        if maybe_leaf.k == _NODE_TYPE_INTERNAL :
-            maybe_leaf = cast(InternalNode, maybe_leaf)
-            return retval + self._find_block(key, maybe_leaf)
+        retval += [tpi(parent.n, i)]
+        next_node = self._read_node(next_block_id)
+        if next_node.k == _NODE_TYPE_INTERNAL :
+            next_node = cast(InternalNode, next_node)
+            logger.debug(f"_find_block2: calling _find_block2 recursively")
+            retval = retval + self._find_block2(key, parent=next_node, lower_bound=lower_bound)
         else :
-            i = bisect_left(maybe_leaf.d, key, key=lambda x : tuple(x[0]))
-            if i >= len(maybe_leaf.d) or tuple(maybe_leaf.d[i][0]) != key :
+            next_node = cast(LeafNode, next_node)
+            logger.debug(f"_find_block2: in leaf node {next_block_id}")
+            i = bisect_func(next_node.d, key, key=lambda x : tuple(x[0]))
+            logger.debug(f"_find_block2: leaf i = {i}")
+            check_index = i if lower_bound else i-1
+            if i >= len(next_node.d) or tuple(next_node.d[check_index][0]) != key :
                 i = _INVALID_INDEX
-            retval += [(next_block_id, i)]
+            retval += [tpi(next_block_id, i)]
 
-        logger.debug(f"_find_block2 returning {retval}")
+        logger.debug(f"_find_block2: returning {retval}")
         return retval
 
     def _find_block(self, key : KeyTuple, parent : Optional[InternalNode] = None) -> TreePath :
@@ -236,7 +264,7 @@ class Index :
         retval : TreePath = []
         if parent is None :
             parent = self._read_root()
-            retval += [(0, _INVALID_INDEX)]
+            retval += [tpi(0, _INVALID_INDEX)]
         logger.debug(f"Finding block for key = '{key}'")
 
         # Find which block the key may be in.
@@ -263,7 +291,7 @@ class Index :
         logger.debug(f"final i = {i}")
         leaf_id = parent.d[i][1]
 
-        retval += [(leaf_id, i)]
+        retval += [tpi(leaf_id, i)]
 
 
         maybe_leaf = self._read_node(leaf_id)
@@ -426,82 +454,86 @@ class Index :
 
 
     class IndexIterator :
-        def __init__(self, index : 'Index', key : Any = None, key_bound : KeyBound = KeyBound.NONE, include_key : bool = True) :
-            if key is None and key_bound != KeyBound.NONE :
-                raise ValueError("Cannot specify key_bound without key.")
-
-            if key is not None and key_bound == KeyBound.NONE :
-                raise ValueError("Cannot specify key without key_bound.")
-
+        def __init__(self, index : 'Index', key : Any = None, op : str | None = None) :
+            # This assumes that parameter sanitizing has already been checked.
             self.index = index
             self.key = key
             self.bound_key = key
-            self.key_bound = key_bound
-            self.include_key = include_key
-            self.operator = pyops.gt if include_key else pyops.ge
+            self.op = op
+
             #List of tuples of block_id and current index
             self.scan_path : TreePath = []
-            if key_bound in (KeyBound.NONE, KeyBound.UPPER) :
+
+            if op in [None, 'le', 'lt'] :
+                logger.debug(f"__init__ : scan_path_for_start")
                 self.scan_path_for_start()
+                self.pyop = getattr(pyops, op) if op is not None else None
+
+            elif op in ['ge', 'gt', 'eq'] :
+                logger.debug(f"__init__ : scan_path_for_key")
+                self.scan_path_for_key(lower_bound=(op != 'gt'))
+                self.pyop = pyops.eq if op == 'eq' else None
             else :
-                self.scan_path_for_key()
+                raise RuntimeError(f"Not sure what to do with operator {op}")
+
+            logger.debug(f"__init__ : starting scan_path = {self.scan_path}")
+            logger.debug(f"__init__ : pyops = {self.pyop.__name__ if self.pyop is not None else None}")
 
         def scan_path_for_start(self) :
             node = self.index._read_root()
             while node.k == _NODE_TYPE_INTERNAL :
                 node = cast(InternalNode, node)
-                self.scan_path.append((node.n, 0))
+                self.scan_path.append(tpi(node.n, 0))
                 node = self.index._read_node(node.d[0][1])
             # append the leaf
-            self.scan_path.append((node.n, 0))
+            self.scan_path.append(tpi(node.n, 0))
 
-        def scan_path_for_key(self) :
+        def scan_path_for_key(self, lower_bound : bool = True) :
             self.bound_key = None
-            self.scan_path = self.index._find_block2((False, self.key))
+            self.scan_path = self.index._find_block2((False, self.key), lower_bound=lower_bound)
 
 
         def __iter__(self) :
             return self
 
         def __next__(self) -> str :
-            '''Returns the row heap id'''
-            logger.debug(f"scan_path = {self.scan_path}")
+            '''Returns the row heap id.
+            Assumes the key has already been skipped if it is not to be included.
+            '''
+            logger.debug(f"__next__: scan_path = {self.scan_path}")
             if len(self.scan_path) == 0 :
+                logger.debug(f"__next__: scan_path is empty - Stopping")
                 raise StopIteration
-            while True :
-                item = self.scan_path.pop()
-                node = self.index._read_node(item[0])
-                if node.k == _NODE_TYPE_LEAF :
-                    node = cast(LeafNode, node)
-                    if item[1] >= len(node.d) :
-                        return self.__next__()
-                    else :
-                        self.scan_path.append((node.n, item[1]+1))
-                        if self.bound_key is not None and self.operator(tuple(node.d[item[1]][0]),(False, self.bound_key)) :
-                            raise StopIteration
-                        elif self.key_bound == KeyBound.LOWER and not self.include_key and pyops.eq(tuple(node.d[item[1]][0]),(False, self.key)) :
-                            logger.debug(f"skipping {node.d[item[1]]}")
-                            continue
-                        return node.d[item[1]][1]
+            item = self.scan_path.pop()
+            node = self.index._read_node(item[0])
+            if node.k == _NODE_TYPE_LEAF :
+                node = cast(LeafNode, node)
+                if item[1] >= len(node.d) :
+                    return self.__next__()
                 else :
-                    node = cast(InternalNode, node)
-                    if item[1] >= len(node.d) - 1:
-                        return self.__next__()
-                    else :
-                        current_index = item[1]+1
-                        self.scan_path.append((node.n, current_index))
-                        node = self.index._read_node(node.d[current_index][1])
-                        while node.k == _NODE_TYPE_INTERNAL :
-                            node = cast(InternalNode, node)
-                            self.scan_path.append((node.n, 0))
-                            node = self.index._read_node(node.d[0][1])
-                        # append the leaf
-                        node = cast(LeafNode, node)
-                        self.scan_path.append((node.n, 0))
-                        if self.key is not None and self.operator(tuple(node.d[item[1]][0]),(False, self.key)) :
-                            raise StopIteration
+                    if self.pyop is not None and not self.pyop(tuple(node.d[item[1]][0]),(False, self.key)) :
+                        raise StopIteration
+                    self.scan_path.append(tpi(node.n, item[1]+1))
+                    return node.d[item[1]][1]
+            else :
+                node = cast(InternalNode, node)
+                if item[1] >= len(node.d) - 1:
+                    return self.__next__()
+                else :
+                    current_index = item[1]+1
+                    self.scan_path.append(tpi(node.n, current_index))
+                    node = self.index._read_node(node.d[current_index][1])
+                    while node.k == _NODE_TYPE_INTERNAL :
+                        node = cast(InternalNode, node)
+                        self.scan_path.append(tpi(node.n, 0))
+                        node = self.index._read_node(node.d[0][1])
+                    # append the leaf
+                    node = cast(LeafNode, node)
+                    self.scan_path.append(tpi(node.n, 0))
+                    if self.pyop is not None and not self.pyop(tuple(node.d[item[1]][0]),(False, self.key)) :
+                        raise StopIteration
 
-                        return node.d[0][1]
+                    return node.d[0][1]
 
     #################################################################
     # Public API
@@ -594,17 +626,21 @@ class Index :
         self._print_tree(0, '')
         print("=== End of tree")
 
-    def scan(self, key : Any = None, key_bound : KeyBound = KeyBound.NONE, include_key : bool = True) :
+    def scan(self, key : Any = None, op : str | None = None) :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        if key is None and key_bound != KeyBound.NONE :
-            raise ValueError("Cannot specify key_bound without key.")
+        if op is not None and op not in OPERATOR_MAP :
+            raise ValueError(f"Invalid operator {op}")
 
-        if key is not None and key_bound == KeyBound.NONE :
-            raise ValueError("Cannot specify key without key_bound.")
+        mapped_op = OPERATOR_MAP[op] if op is not None else None
 
-        for record in Index.IndexIterator(self, key, key_bound, include_key) :
+        if key is None and op is not None :
+            raise ValueError("Cannot specify operator without key.")
+
+        logger.debug(f"--- Scanning index {self.index_name}, key = {key}, op = {op}, mapped_op = {mapped_op}")
+
+        for record in Index.IndexIterator(self, key, mapped_op) :
             yield record
 
     def close(self) :
