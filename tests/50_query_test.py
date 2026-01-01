@@ -113,7 +113,7 @@ class TestQuery() :
         table.insert({"id" : 2, "name" : "alice"})
         table.insert({"id" : 3, "name" : "charlie"})
 
-        query = self.db.query("test").filter("not (name = 'alice')")
+        query = self.db.query("test").filter("not (name = 'alice')").sort("id")
         data = list(query.run())
         assert data == [{"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
 
@@ -126,7 +126,7 @@ class TestQuery() :
         table.insert({"id" : 2, "name" : "alice"})
         table.insert({"id" : 3, "name" : "charlie"})
 
-        query = self.db.query("test").filter("id >= 2")
+        query = self.db.query("test").filter("id >= 2").sort("id")
         data = list(query.run())
         assert data == [{"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]
 
@@ -139,7 +139,8 @@ class TestQuery() :
         table.insert({"id" : 2, "name" : "alice"})
         table.insert({"id" : 3, "name" : "bob"})
 
-        query = self.db.query("test").sort("name").distinct("name")
+        # The sort is just to make the output stable.
+        query = self.db.query("test").sort("name", "id").distinct("name")
         data = list(query.run())
         assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}]
 
