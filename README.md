@@ -226,6 +226,13 @@ table.insert({'col1' : 2})
 
 table.delete({'col1' : 1})
 ```
+
+### delete_from_query()
+Thin wrapper to loop through the output of a query and delete each record.
+```python
+query = db.query("my_table").filter("year < 2024")
+count = table.delete_from_query(query)
+```
 ## Query
 Queries always start from the database object.
 Queries are built up of calss to operators (which are listed below).

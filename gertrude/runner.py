@@ -23,34 +23,38 @@ class QueryRunner :
             OpType.distinct : self.distinct,
         }
 
-    def scan(self, scan : QueryOp, _ : list[dict] | RowGenerator) -> RowGenerator :
-        return cast(RowGenerator, scan.data)
+    def scan(self, scan : QueryOp, _ : list[dict] | RowGenerator, last : bool) -> RowGenerator | list[dict] :
+        gen = cast(RowGenerator, scan.data)
+        if last :
+            return [ x._asdict() if isinstance(x, _Row) else x for x in gen ]
+        else :
+            return gen
 
-    def filter(self, filter : QueryOp, data : list[dict] | RowGenerator) -> list[dict]  :
+    def filter(self, filter : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict]  :
         logger.debug(f"Filtering by {filter.data}")
         data = [ x._asdict() if isinstance(x, _Row) else x for x in data if all(f.calc(x) for f in filter.data) ]
         return data
 
-    def select(self, select : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
+    def select(self, select : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
         logger.debug(f"Selecting {select.data}")
         columns = select.data
         data = [ { c : e.calc(x) for c,e in columns } for x in data ]
         return data
 
-    def add_column(self, add_column : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
+    def add_column(self, add_column : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
         logger.debug(f"Adding column {add_column.data}")
         columns = add_column.data
         data = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x) for c,e in columns }} for x in data ]
         return data
 
-    def sort(self, sort : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
+    def sort(self, sort : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
         logger.debug(f"Sorting by {sort.data}")
         retval = sorted(data, key=lambda row : tuple(tuple(row[c] for c in sort.data)))
         if isinstance(retval[0], _Row) :
             retval = [ x._asdict() if isinstance(x, _Row) else x for x in retval ]
         return retval
 
-    def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
+    def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
         logger.debug(f"Distinct by {distinct.data}")
         seen : set[tuple] = set()
         retval : list[dict] = []
@@ -134,8 +138,8 @@ class QueryRunner :
         plan = self.plan()
 
         data = []
-        for op in plan :
-            data = self.ops[op.op](op, data)
+        for i, op in enumerate(plan) :
+            data = self.ops[op.op](op, data, i >= len(plan)-1)
 
         return data
 

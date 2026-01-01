@@ -248,6 +248,12 @@ class Table :
         return list(self.index.keys())
 
     def delete(self, row : dict[str, Any]) -> bool :
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+
         victim = _Row.from_dict(self.spec, row)
 
         for block_id, record in self._data_iter() :
@@ -259,3 +265,21 @@ class Table :
                 return True
 
         return False
+
+    def delete_from_query(self, query : Any) -> int :
+        if self.db_ctx.mode == "ro" :
+            raise ValueError("Database is in read-only mode.")
+
+        if not self.open :
+            raise ValueError(f"Table {self.name} is closed.")
+
+        from .query import Query
+
+        if not isinstance(query, Query) :
+            raise ValueError(f"Invalid query type {type(query)}")
+
+        count = 0
+        for row in query.run() :
+            if self.delete(row) :
+                count += 1
+        return count
