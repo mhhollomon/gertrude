@@ -147,7 +147,7 @@ class Database :
     def cache_stats(self) :
         return self.db_ctx.cache.stats
 
-    def query(self, table_name : str) :
+    def query(self, table_name : str) -> Query :
         if table_name not in self.table_defs :
             raise ValueError(f"Table {table_name} does not exist.")
 
