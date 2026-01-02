@@ -14,6 +14,7 @@ class OpType(Enum) :
     add_column = "add_column"
     sort = "sort"
     distinct = "distinct"
+    to_dict = "to_dict"
 
 @dataclass
 class QueryOp :

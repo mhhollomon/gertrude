@@ -132,7 +132,8 @@ class TestQuery() :
         assert data == [{"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]
         plan = query.show_plan()
         print("\n".join(plan))
-        assert len(plan) == 2
+        assert len(plan) == 3
+        assert plan[-1].startswith("to_dict(")
 
     def test_distinct_query(self) :
         table = self.db.add_table("test", [

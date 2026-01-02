@@ -1,4 +1,5 @@
-from typing import Any, cast
+from types import GeneratorType
+from typing import Any, Generator, cast
 
 from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, SortOp
 from .table import Table
@@ -21,33 +22,31 @@ class QueryRunner :
             OpType.add_column : self.add_column,
             OpType.sort : self.sort,
             OpType.distinct : self.distinct,
+            OpType.to_dict : self.to_dict
         }
 
-    def scan(self, scan : QueryOp, _ : list[dict] | RowGenerator, last : bool) -> RowGenerator | list[dict] :
+    def scan(self, scan : QueryOp, _ : list[dict] | RowGenerator) -> RowGenerator | list[dict] :
         gen = cast(RowGenerator, scan.data)
-        if last :
-            return [ x._asdict() if isinstance(x, _Row) else x for x in gen ]
-        else :
-            return gen
+        return gen
 
-    def filter(self, filter : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict]  :
+    def filter(self, filter : QueryOp, data : list[dict] | RowGenerator) -> list[dict]  :
         logger.debug(f"Filtering by {filter.data}")
         data = [ x._asdict() if isinstance(x, _Row) else x for x in data if all(f.calc(x) for f in filter.data) ]
         return data
 
-    def select(self, select : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
+    def select(self, select : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
         logger.debug(f"Selecting {select.data}")
         columns = select.data
         data = [ { c : e.calc(x) for c,e in columns } for x in data ]
         return data
 
-    def add_column(self, add_column : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
+    def add_column(self, add_column : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
         logger.debug(f"Adding column {add_column.data}")
         columns = add_column.data
         data = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x) for c,e in columns }} for x in data ]
         return data
 
-    def sort(self, sort : SortOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
+    def sort(self, sort : SortOp, data : list[dict] | RowGenerator) -> list[dict] :
         logger.debug(f"Sorting by {sort.spec}")
         retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
         for s in reversed(sort.spec) :
@@ -55,7 +54,7 @@ class QueryRunner :
                           key=lambda row : s.expr.calc(row._asdict() if isinstance(row, _Row) else row))
         return retval
 
-    def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
+    def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
         logger.debug(f"Distinct by {distinct.data}")
         seen : set[tuple] = set()
         retval : list[dict] = []
@@ -70,6 +69,11 @@ class QueryRunner :
                 seen.add(key)
                 retval.append(row)
         return retval
+
+    def to_dict(self, op : QueryOp, data : list[dict] | GeneratorType) -> list[dict]  :
+        if isinstance(data, GeneratorType) :
+            data = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
+        return data
 
     def _test_filter_for_index(self, filter : QueryOp, table : Table) -> tuple[RowGenerator, str] | None :
         if filter.op != OpType.filter :
@@ -131,6 +135,8 @@ class QueryRunner :
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
 
+        new_plan.append(QueryOp(OpType.to_dict, []))
+
         return new_plan
 
     def run(self) -> list[dict[str, Any]] :
@@ -140,7 +146,7 @@ class QueryRunner :
 
         data = []
         for i, op in enumerate(plan) :
-            data = self.ops[op.op](op, data, i >= len(plan)-1)
+            data = self.ops[op.op](op, data)
 
         return data
 
