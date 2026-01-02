@@ -130,6 +130,9 @@ class TestQuery() :
         query = self.db.query("test").filter("id >= 2").sort("id")
         data = list(query.run())
         assert data == [{"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]
+        plan = query.show_plan()
+        print("\n".join(plan))
+        assert len(plan) == 2
 
     def test_distinct_query(self) :
         table = self.db.add_table("test", [
