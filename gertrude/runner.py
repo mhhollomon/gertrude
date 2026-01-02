@@ -47,7 +47,7 @@ class QueryRunner :
         data = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x) for c,e in columns }} for x in data ]
         return data
 
-    def sort(self, sort : SortOp, data : list[dict] | RowGenerator) -> list[dict] :
+    def sort(self, sort : SortOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
         logger.debug(f"Sorting by {sort.spec}")
         retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
         for s in reversed(sort.spec) :
