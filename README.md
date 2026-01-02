@@ -298,7 +298,15 @@ the spec for `select` is one or more of the following.
     - An expression string to compute the value.
 
 ### sort
-List of one or more keys in the data on which to sort.
+List of one or more keys in the data on which to sort. The implied sort
+order is ascending. Use the utility functions `asc()` and `desc()` to be
+explicit.
+
+```python
+from gertrude.util import asc, desc
+
+# Sort ascending by cust_id and descending for total
+q=db.query("order_table").sort("cust_id", desc("total"))
 
 ### distinct
 Return unique rows from the dataset. If no column names are given,

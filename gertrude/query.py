@@ -5,6 +5,7 @@ from .expression import expr_parse
 from .lib.expr_nodes import ExprNode
 from .lib import plan
 from .runner import QueryRunner
+from .util import SortSpec, asc
 
 
 class Query:
@@ -40,8 +41,9 @@ class Query:
         self._generate_select_step(((name, expr),), plan.OpType.add_column)
         return self
 
-    def sort(self, *columns : str) -> Self :
-        self.steps.append(plan.QueryOp(plan.OpType.sort, columns))
+    def sort(self, *columns : str | SortSpec) -> Self :
+        spec = [ c if isinstance(c, SortSpec) else asc(c) for c in columns ]
+        self.steps.append(plan.SortOp(spec))
         return self
 
     def distinct(self, *columns : str) -> Self :

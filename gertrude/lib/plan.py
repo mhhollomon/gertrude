@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Generator, List
+from typing import Any, Generator, List, cast
 
 from gertrude.globals import _Row
+from gertrude.util import SortSpec
 
 
 class OpType(Enum) :
@@ -50,3 +51,11 @@ class ScanOp(QueryOp) :
         if self.description == "" :
             return super().__str__()
         return f"{self.op.value}({self.description})"
+
+class SortOp(QueryOp) :
+    def __init__(self, data : List[SortSpec]) :
+        super().__init__(OpType.sort, data)
+
+    @property
+    def spec(self) -> list[SortSpec]:
+        return cast(list[SortSpec], self.data)

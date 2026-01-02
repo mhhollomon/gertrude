@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 class ExprNode(ABC):
     @abstractmethod
-    def calc(self, row : dict[str, Any]) :
+    def calc(self, row : dict[str, Any]) -> Any:
         ...
 
     @abstractmethod
@@ -23,7 +23,7 @@ class Operation(ExprNode) :
     def name(self) :
         return self.op.__name__
 
-    def calc(self, row : dict[str, Any]) :
+    def calc(self, row : dict[str, Any]) -> Any :
         return self.op(self.left.calc(row), self.right.calc(row))
 
     def to_python(self) :
@@ -33,7 +33,7 @@ class Operation(ExprNode) :
 class ColumnName(ExprNode) :
     name : str
 
-    def calc(self, row : dict[str, Any]) :
+    def calc(self, row : dict[str, Any]) -> Any :
         try :
             return row[self.name]
         except KeyError :
@@ -47,7 +47,7 @@ class Literal(ExprNode) :
     value : Any
     vtype : str
 
-    def calc(self, row : dict[str, Any]) :
+    def calc(self, row : dict[str, Any]) -> Any :
         return self.value
 
     def to_python(self) :
@@ -61,7 +61,7 @@ class MonoOperation(ExprNode) :
     op : Any
     arg : ExprNode
 
-    def calc(self, row : dict[str, Any]) :
+    def calc(self, row : dict[str, Any]) -> Any :
         return self.op(self.arg.calc(row))
 
     def to_python(self) :

@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from gertrude import Database, cspec
+from gertrude.util import desc
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_logging(request, caplog):
@@ -148,3 +149,40 @@ class TestQuery() :
         data = list(query.run())
         assert data == [{"id" : 1, "name" : "bob"}, {"id" : 2, "name" : "alice"},
                         {"id" : 3, "name" : "bob"}]
+
+
+    def test_sort_query(self) :
+        table = self.db.add_table("test", [
+            cspec("id", "int"), cspec("name", "str")
+        ])
+
+        table.insert({"id" : 1, "name" : "bob"})
+        table.insert({"id" : 2, "name" : "alice"})
+        table.insert({"id" : 3, "name" : "bob"})
+
+        query = self.db.query("test").sort(desc("id"))
+        data = list(query.run())
+
+        assert data == [{"id" : 3, "name" : "bob"}, {"id" : 2, "name" : "alice"},
+                        {"id" : 1, "name" : "bob"}]
+
+        table = self.db.add_table("order", [
+            cspec("cust", "int"), cspec("item", "str"), cspec("qty", "int")
+        ])
+
+        table.insert({"cust" : 1, "item" : "a", "qty" : 10})
+        table.insert({"cust" : 1, "item" : "b", "qty" : 20})
+        table.insert({"cust" : 1, "item" : "c", "qty" : 30})
+        table.insert({"cust" : 2, "item" : "a", "qty" : 40})
+        table.insert({"cust" : 2, "item" : "b", "qty" : 50})
+        table.insert({"cust" : 2, "item" : "c", "qty" : 60})
+
+        query = self.db.query("order").sort("cust", desc("qty"))
+        data = list(query.run())
+
+        assert data == [{"cust" : 1, "item" : "c", "qty" : 30},
+                        {"cust" : 1, "item" : "b", "qty" : 20},
+                        {"cust" : 1, "item" : "a", "qty" : 10},
+                        {"cust" : 2, "item" : "c", "qty" : 60},
+                        {"cust" : 2, "item" : "b", "qty" : 50},
+                        {"cust" : 2, "item" : "a", "qty" : 40}]

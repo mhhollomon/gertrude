@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp
+from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, SortOp
 from .table import Table
 
 from .globals import _Row
@@ -47,11 +47,12 @@ class QueryRunner :
         data = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x) for c,e in columns }} for x in data ]
         return data
 
-    def sort(self, sort : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
-        logger.debug(f"Sorting by {sort.data}")
-        retval = sorted(data, key=lambda row : tuple(tuple(row[c] for c in sort.data)))
-        if isinstance(retval[0], _Row) :
-            retval = [ x._asdict() if isinstance(x, _Row) else x for x in retval ]
+    def sort(self, sort : SortOp, data : list[dict] | RowGenerator) -> list[dict] :
+        logger.debug(f"Sorting by {sort.spec}")
+        retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
+        for s in reversed(sort.spec) :
+            retval = sorted(retval, reverse=(s.order == "desc"), \
+                          key=lambda row : s.expr.calc(row._asdict() if isinstance(row, _Row) else row))
         return retval
 
     def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator, _ : bool) -> list[dict] :
