@@ -56,9 +56,9 @@ def run_test(db_path : Path, size : int) :
             raise RuntimeError(f"Could not find {num}")
     query2_end_time = time.perf_counter()
 
-    print(f"Build  time: {str(timedelta(seconds=build_end_time - build_start_time))}")
-    print(f"Query  time: {str(timedelta(seconds=query_end_time - query_start_time))}")
-    print(f"Query2 time: {str(timedelta(seconds=query2_end_time - query2_start_time))}")
+    print(f"Table/Index Build time: {str(timedelta(seconds=build_end_time - build_start_time))}")
+    print(f"Query with data time  : {str(timedelta(seconds=query_end_time - query_start_time))}")
+    print(f"Query only index time : {str(timedelta(seconds=query2_end_time - query2_start_time))}")
 
     print("Cache stats:")
     print(db.cache_stats)
