@@ -36,7 +36,6 @@ class QueryOp :
 
 type QueryPlan = List[QueryOp]
 
-@dataclass
 class ReadOp(QueryOp) :
     def __init__(self, table_name : str) :
         super().__init__(OpType.read, table_name)

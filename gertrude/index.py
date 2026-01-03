@@ -4,7 +4,7 @@ from enum import Enum
 import json
 import msgpack
 from pathlib import Path
-from typing import Any, List, NamedTuple, Optional, Tuple, cast
+from typing import Any, Generator, List, NamedTuple, Optional, Tuple, cast
 import operator as pyops
 
 from .globals import TYPES, DBContext, _Row
@@ -503,22 +503,25 @@ class Index :
                 logger.debug(f"__next__: scan_path is empty - Stopping")
                 raise StopIteration
             item = self.scan_path.pop()
-            node = self.index._read_node(item[0])
+            logger.debug(f"__next__: current item = {item}")
+            node = self.index._read_node(item.block_id)
             if node.k == _NODE_TYPE_LEAF :
                 node = cast(LeafNode, node)
-                if item[1] >= len(node.d) :
+                logger.debug(f"__next__: leaf node = {node.n}, {node.k}, {len(node.d)}")
+                if item.index >= len(node.d) :
                     return self.__next__()
                 else :
-                    if self.pyop is not None and not self.pyop(tuple(node.d[item[1]][0]),(False, self.key)) :
+                    if self.pyop is not None and not self.pyop(tuple(node.d[item.index][0]),(False, self.key)) :
                         raise StopIteration
                     self.scan_path.append(tpi(node.n, item[1]+1))
                     return node.d[item[1]][1]
             else :
                 node = cast(InternalNode, node)
+                logger.debug(f"__next__: internal node = {node.n}, {node.k}, {len(node.d)}")
                 if item[1] >= len(node.d) - 1:
                     return self.__next__()
                 else :
-                    current_index = item[1]+1
+                    current_index = item.index+1
                     self.scan_path.append(tpi(node.n, current_index))
                     node = self.index._read_node(node.d[current_index][1])
                     while node.k == _NODE_TYPE_INTERNAL :
@@ -528,7 +531,7 @@ class Index :
                     # append the leaf
                     node = cast(LeafNode, node)
                     self.scan_path.append(tpi(node.n, 0))
-                    if self.pyop is not None and not self.pyop(tuple(node.d[item[1]][0]),(False, self.key)) :
+                    if self.pyop is not None and not self.pyop(tuple(node.d[0][0]),(False, self.key)) :
                         raise StopIteration
 
                     return node.d[0][1]
@@ -624,7 +627,7 @@ class Index :
         self._print_tree(0, '')
         print("=== End of tree")
 
-    def scan(self, key : Any = None, op : str | None = None) :
+    def scan(self, key : Any = None, op : str | None = None) -> Generator[str, Any, None]:
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
