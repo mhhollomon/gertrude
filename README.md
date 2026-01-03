@@ -28,7 +28,7 @@ $ pip install /path/to/gertrude/dist/gertrude-0.0.1-py2.py3-none-any.whl
 ### creation
 ```python
 import gertrude
-db = gertrude.Database.create(db_path='/path/to/my_db', comment='This will be an awesome db')
+db = gertrude.Database.create(db_path='/path/to/my_db', comment='This will be an awesome db', option1=...)
 ```
 #### db_path
 This can be either a string or a `pathlib.Path`.
@@ -38,6 +38,11 @@ does not exist, it will be created. If it **does** exist, it must be empty.
 
 #### comment
 An optional string describing the database.
+
+### options
+The following options are recognized :
+- index_fanout - number of keys per index node (default=80)
+- index_cache_size - number of blocks in the index block cache (default=128)
 
 ### Opening an existing database
 ```python

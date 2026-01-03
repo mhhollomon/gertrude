@@ -15,19 +15,36 @@ import shutil
 import gertrude
 
 import logging
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.INFO)
+# x = logging.getLogger("gertrude.database")
+# x.setLevel(logging.DEBUG)
+# x.propagate = True
+# x = logging.getLogger("gertrude.index")
+# x.setLevel(logging.DEBUG)
+# x.propagate = True
 
-def run_test(db_path : Path, size : int) :
-
+def build_db(db_path : Path, fanout : int, cache_size : int) -> gertrude.Database :
     if db_path.exists() :
         shutil.rmtree(db_path)
 
-    db = gertrude.Database.create(db_path)
+    db = gertrude.Database.create(db_path,
+                                  index_fanout=fanout,
+                                  index_cache_size=cache_size
+                                  )
 
     table = db.add_table("test", [
         gertrude.FieldSpec("num", 'int', {}),
     ])
     index = table.add_index("test_index", "num")
+
+    return db
+
+
+def run_test(db : gertrude.Database, size : int) :
+
+    table = db.table("test")
+    index = table.index("test_index")
+
 
     array = [i for i in range(size)]
     random.shuffle(array)
@@ -66,5 +83,8 @@ def run_test(db_path : Path, size : int) :
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument("--size", type=int, default=100)
+    parser.add_argument("--fanout", type=int, default=80)
+    parser.add_argument("--cache-size", type=int, default=128)
     args = parser.parse_args()
-    run_test(Path("./output"), args.size)
+    db = build_db(Path("./output"), args.fanout, args.cache_size)
+    run_test(db, args.size,)

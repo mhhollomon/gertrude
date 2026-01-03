@@ -12,8 +12,6 @@ from .globals import TYPES, DBContext, _Row
 import logging
 logger = logging.getLogger(__name__)
 
-_NODE_FANOUT : int = 6
-
 type KeyTuple = Tuple[bool, Any]
 
 # Used by the block list
@@ -81,6 +79,11 @@ class Index :
         self.db_ctx = db_ctx
         self.unique = unique
         self.nullable = nullable
+        self.fanout = db_ctx.options.index_fanout
+
+        logger.debug(f" DBContext options = {db_ctx.options}")
+
+        logger.debug(f"Creating index {self.index_name} on column {self._column} of type {self.coltype} with fanout = {self.fanout}")
 
         self.closed = False
 
@@ -127,6 +130,7 @@ class Index :
             "id" : self.id,
             "unique" : self.unique,
             "nullable" : self.nullable,
+            "fanout" : self.fanout,
         }
 
         ## Dump config info
@@ -155,7 +159,7 @@ class Index :
         root = []
         records.sort(key=lambda x : x[0])
 
-        init_fanout = int(_NODE_FANOUT * 0.75)
+        init_fanout = int(self.fanout * 0.75)
 
         while len(records) >= init_fanout :
             new_block_id = self.db_ctx.generate_id()
@@ -189,8 +193,13 @@ class Index :
         index = Index(config["name"], path, config["column"], config["coltype"],
                       db_ctx, unique=config["unique"], nullable=config["nullable"])
 
+        # forcing fanout to what was in the config
+        index.fanout = config["fanout"]
+        logger.debug(f"Loading index {index.index_name} with fanout {index.fanout}")
+
         index.id = config["id"]
         db_ctx.cache.register(index.id, path)
+
         return index
 
     def _find_key_in_leaf(self, key : KeyTuple, leaf : LeafNode) -> Tuple[bool, int] :
@@ -307,7 +316,7 @@ class Index :
         # there are multiple entries with the same key,
         # we need to make sure all the entries with the same key
         # are in the same block.
-        split_point = _NODE_FANOUT//2
+        split_point = self.fanout//2
         split_key = tuple(node.d[split_point][0])
 
         # How many places to the left do we need to move
@@ -380,7 +389,7 @@ class Index :
 
         parent.d.insert(parent_index+1, (right_data[0][0], right_id))
 
-        if len(parent.d) >= _NODE_FANOUT :
+        if len(parent.d) >= self.fanout :
             self._split_internal(parent, parent_parent_index, tree_path[:-1])
         else :
             self._write_node(parent.n, parent)
@@ -430,7 +439,7 @@ class Index :
             self._write_node(node.n, _make_internal(node.n, left_data))
             self._write_node(right_id, _make_internal(right_id, right_data))
 
-            if len(parent.d) >= _NODE_FANOUT :
+            if len(parent.d) >= self.fanout :
                 self._split_internal(parent, parent_parent_index, tree_path[:-1])
             else :
                 self._write_node(parent.n, parent)
@@ -612,7 +621,7 @@ class Index :
 
         insort(leaf.d, (key, heap_id), key=lambda x : tuple(x[0]))
 
-        if len(leaf.d) >= _NODE_FANOUT :
+        if len(leaf.d) >= self.fanout :
             self._split_leaf(leaf, parent_index, tree_path[:-1])
         else :
             self._write_node(leaf_id, leaf)

@@ -43,4 +43,4 @@ def test_delete_row_with_index(caplog, tmp_path) :
     data = list(table.index_scan("name_index"))
     assert data == [{"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
 
-    table.index["name_index"].print_tree()
+    table.indexes["name_index"].print_tree()

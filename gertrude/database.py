@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 
 from .globals import ( CURRENT_SCHEMA_VERSION,
-                      GERTRUDE_VERSION, NAME_REGEX, DBContext
+                      GERTRUDE_VERSION, NAME_REGEX, DBContext, DBOptions
                       )
 
 from .query import Query
@@ -19,19 +19,22 @@ _OPTIONS = {
     "nullable" : bool,
 }
 
+import logging
+logger = logging.getLogger(__name__)
 
 
 #################################################################
 # Database class
 #################################################################
 class Database :
-    def __init__(self, db_path : Path, *, mode : str = "rw", comment : str = '') :
+    def __init__(self, db_path : Path, *, mode : str = "rw", comment : str = '', options : DBOptions = DBOptions()) :
         """Do not call directly. Use `Database.create` or `Database.open` instead.
         """
         self.db_path = db_path
         self.table_defs = {}
         self.mode = mode
         self.comment = comment
+        self.options = options
 
 
     #################################################################
@@ -47,12 +50,14 @@ class Database :
         (self.db_path / "tables").mkdir()
 
         self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
-        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen, LRUCache(100))
+        self.db_ctx = DBContext(self.db_path, self.mode,
+                                self.id_gen, LRUCache(self.options.index_cache_size), options=self.options)
 
 
     def _open(self) :
         self.id_gen = IntegerIdGenerator(self.db_path / "int_id")
-        self.db_ctx = DBContext(self.db_path, self.mode, self.id_gen, LRUCache(100))
+        self.db_ctx = DBContext(self.db_path, self.mode,
+                                self.id_gen, LRUCache(100), options=self.options)
 
         tables = self.db_path / "tables"
         if not tables.exists() :
@@ -70,7 +75,7 @@ class Database :
     #################################################################
 
     @classmethod
-    def create(cls, db_path : Path, *, mode : str = "rw", comment : str = '') -> Self:
+    def create(cls, db_path : Path, *, mode : str = "rw", comment : str = '', **kwargs) -> Self:
 
         if db_path.exists() :
             if len(list(db_path.glob("*"))) > 0 :
@@ -78,7 +83,11 @@ class Database :
         else :
             db_path.mkdir()
 
-        db = cls(db_path, mode = mode, comment = comment)
+        options = DBOptions(**kwargs)
+
+        logger.debug(f"Creating database {db_path} with options {options}")
+
+        db = cls(db_path, mode = mode, comment = comment, options = options)
         db._create()
 
         return db

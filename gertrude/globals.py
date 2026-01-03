@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import regex as re
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -20,15 +21,24 @@ class GertrudeError(RuntimeError) :
 from .int_id import IntegerIdGenerator
 from .cache import LRUCache
 
+_DB_OPTIONS = set(["index_fanout"])
+@dataclass
+class DBOptions :
+    # decent compromise between insert performance and probe performance.
+    index_fanout : int = 80
+    index_cache_size : int = 128
+
 class DBContext :
     def __init__(self, db_path : Path,
                  mode : str,
                  id_gen : IntegerIdGenerator,
-                 cache : LRUCache) :
+                 cache : LRUCache,
+                 options : DBOptions) :
         self.db_path = db_path
         self.rw_mode = mode
         self.id_gen = id_gen
         self.cache = cache
+        self.options = options
 
     def path(self) -> Path :
         return self.db_path

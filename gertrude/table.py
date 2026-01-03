@@ -37,7 +37,7 @@ class Table :
                 db_ctx : DBContext) :
 
         self.db_path = db_path
-        self.index : Dict[str, Index] = {}
+        self.indexes : Dict[str, Index] = {}
         self.orig_spec = spec
         self.name = table_name
         self.db_ctx = db_ctx
@@ -49,7 +49,7 @@ class Table :
         if not self.open :
             return
 
-        for i in self.index.values() :
+        for i in self.indexes.values() :
             i.close()
 
         import shutil
@@ -142,7 +142,7 @@ class Table :
         if not NAME_REGEX.match(index_name) :
             raise ValueError(f"Invalid index name {index_name} for table {self.name}")
 
-        if index_name in self.index :
+        if index_name in self.indexes :
             raise ValueError(f"Index {index_name} already exists for table {self.name}")
 
         col = [x for x in self.spec if x.name == column]
@@ -152,7 +152,7 @@ class Table :
         new_index = Index(index_name,
                           self.db_path / "index" / index_name,
                           column, col[0].type, self.db_ctx, **kwargs)
-        self.index[index_name] = new_index
+        self.indexes[index_name] = new_index
 
         new_index._create(self._data_iter)
 
@@ -165,12 +165,12 @@ class Table :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        if index_name not in self.index :
+        if index_name not in self.indexes :
             raise ValueError(f"Index {index_name} does not exist for table {self.name}")
 
         index_path = self.db_path / "index" / index_name
-        self.index[index_name].close()
-        del self.index[index_name]
+        self.indexes[index_name].close()
+        del self.indexes[index_name]
 
         shutil.rmtree(index_path)
 
@@ -184,7 +184,7 @@ class Table :
         return col[0]
 
     def find_index_for_column(self, column : str) -> str | None:
-        index = [k for k, x in self.index.items() if x.column == column]
+        index = [k for k, x in self.indexes.items() if x.column == column]
         if len(index) != 1 :
             return None
         return index[0]
@@ -212,14 +212,14 @@ class Table :
 
         logger.debug(f"--- record_object = {record_object}")
 
-        for index in self.index.values() :
+        for index in self.indexes.values() :
             success, msg = index.test_for_insert(record_object)
             if not success :
                 raise ValueError(f"Failed to insert record: {msg}")
 
         heap_id = heap.write(self.db_path / "data", record_object.to_storage())
 
-        for index in self.index.values() :
+        for index in self.indexes.values() :
             index.insert(record_object, heap_id)
 
         return heap_id
@@ -229,12 +229,12 @@ class Table :
             yield record[1]
 
     def index_scan(self, name : str, key : Any = None, op : str | None = None) :
-        if name not in self.index :
+        if name not in self.indexes :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        for block in self.index[name].scan(key, op) :
+        for block in self.indexes[name].scan(key, op) :
             row = _Row.from_storage(self.spec, heap.read(self.db_path / "data", block))
             yield row
 
@@ -242,10 +242,10 @@ class Table :
 
 
     def print_index(self, name : str) :
-        self.index[name].print_tree()
+        self.indexes[name].print_tree()
 
     def index_list(self) :
-        return list(self.index.keys())
+        return list(self.indexes.keys())
 
     def delete(self, row : dict[str, Any]) -> bool :
         if self.db_ctx.mode == "ro" :
@@ -260,7 +260,7 @@ class Table :
             if record == victim :
                 logger.debug(f"Deleting record{record}")
                 heap.delete(self.db_path / "data", block_id)
-                for index in self.index.values() :
+                for index in self.indexes.values() :
                     index.delete(row)
                 return True
 
@@ -283,3 +283,6 @@ class Table :
             if self.delete(row) :
                 count += 1
         return count
+
+    def index(self, index_name : str) -> Index :
+        return self.indexes[index_name]
