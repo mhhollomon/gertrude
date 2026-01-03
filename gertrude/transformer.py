@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from lark import Transformer, v_args
 from .lib import expr_nodes as node
 
@@ -24,11 +24,11 @@ class ExprTransformer(Transformer) :
         return node.Literal(x.value[1:-1], 'str')
     def lit_int(self, x) :
         return node.Literal(int(x.value), 'int')
-    def true(self, _) :
+    def true(self) :
         return node.Literal(True, 'bool')
-    def false(self, _) :
+    def false(self) :
         return node.Literal(False, 'bool')
-    def null(self, _) :
+    def null(self) :
         return node.Literal(None, 'null')
 
     def add(self, x, y) :
@@ -39,6 +39,8 @@ class ExprTransformer(Transformer) :
         return node.Operation('math', pyops.mul, x, y)
     def div(self, x, y) :
         return node.Operation('math', pyops.truediv, x, y)
+    def mod(self, x, y) :
+        return node.Operation('math', pyops.mod, x, y)
 
     def bnot(self, x) :
         return node.MonoOperation(pyops.not_, x)
@@ -72,3 +74,15 @@ class ExprTransformer(Transformer) :
             return pyops.or_
         else :
             raise ValueError(f"Unknown logical operator {x.value}")
+
+    def caseleg(self, when, then) :
+        return node.CaseLeg(when, then)
+
+    def case(self, *branches) :
+        if not isinstance(branches[-1], node.CaseLeg) :
+            default = cast(node.ExprNode, branches[-1])
+            legs = cast(list[node.CaseLeg], branches[:-1])
+        else :
+            default = node.Literal(None, 'null')
+            legs = cast(list[node.CaseLeg], branches)
+        return node.CaseStmt(legs, default)

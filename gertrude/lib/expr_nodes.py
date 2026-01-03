@@ -12,6 +12,11 @@ class ExprNode(ABC):
     def to_python(self) :
         ...
 
+    @property
+    @abstractmethod
+    def name(self) :
+        ...
+
 
 @dataclass
 class Operation(ExprNode) :
@@ -20,6 +25,7 @@ class Operation(ExprNode) :
     left : ExprNode
     right : ExprNode
 
+    @property
     def name(self) :
         return self.op.__name__
 
@@ -31,16 +37,20 @@ class Operation(ExprNode) :
 
 @dataclass
 class ColumnName(ExprNode) :
-    name : str
+    name_ : str
 
     def calc(self, row : dict[str, Any]) -> Any :
         try :
-            return row[self.name]
+            return row[self.name_]
         except KeyError :
-            raise KeyError(f"Column {self.name} not found in row")
+            raise KeyError(f"Column {self.name_} not found in row")
 
     def to_python(self) :
-        return f"row['{self.name}']"
+        return f"row['{self.name_}']"
+
+    @property
+    def name(self) :
+        return self.name_
 
 @dataclass
 class Literal(ExprNode) :
@@ -53,6 +63,7 @@ class Literal(ExprNode) :
     def to_python(self) :
         return repr(self.value)
 
+    @property
     def name(self) :
         return self.vtype
 
@@ -67,5 +78,42 @@ class MonoOperation(ExprNode) :
     def to_python(self) :
         return f"{self.op.__name__}({self.arg.to_python()})"
 
+    @property
     def name(self) :
         return self.op.__name__
+
+@dataclass
+class CaseLeg(ExprNode) :
+    condition : ExprNode
+    result : ExprNode
+
+    def calc(self, row : dict[str, Any]) -> Any :
+        return self.result.calc(row)
+
+    def matches(self, row : dict[str, Any]) -> bool :
+        return bool(self.condition.calc(row))
+
+    def to_python(self) :
+        return f"if {self.condition.to_python()} : {self.result.to_python()}"
+
+    @property
+    def name(self) :
+        return "when"
+
+@dataclass
+class CaseStmt(ExprNode) :
+    legs : list[CaseLeg]
+    default : ExprNode
+
+    def calc(self, row : dict[str, Any]) -> Any :
+        for leg in self.legs :
+            if leg.matches(row) :
+                return leg.calc(row)
+        return self.default.calc(row)
+
+    def to_python(self) :
+        return f"if {self.legs[0].to_python()} : {self.legs[0].result.to_python()}"
+
+    @property
+    def name(self) :
+        return "case"

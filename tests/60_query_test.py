@@ -68,7 +68,7 @@ class TestQuery() :
 
         assert list(data) == [{"emp" : "bob", "total" : 1100.0}]
 
-    def test_math_query2(self, tmp_path) :
+    def test_math_query2(self) :
         table = self.db.add_table("test", [
             cspec("stock", "str"),
             cspec("price", "float"),

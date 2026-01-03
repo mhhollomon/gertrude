@@ -1,4 +1,9 @@
-?expr : logop
+?expr : case
+
+?case : logop
+      | "case"i caseleg+ ("else"i logop)? "end"i
+
+caseleg : "when"i logop "then"i logop
 
 ?logop : relop
        | relop LOGOPERATOR logop
@@ -13,6 +18,7 @@
 ?product : boolnot
          | product "*" boolnot -> mul
          | product "/" boolnot -> div
+         | product "%" boolnot -> mod
 
 ?boolnot : _NOT atom -> bnot
          | atom
@@ -20,13 +26,17 @@
 ?atom : SQ_STR -> lit_str
       | SIGNED_INT -> lit_int
       | col_name
-      | /true/i -> true
-      | /false/i -> false
-      | /null/i -> null
-      | "(" logop ")"
+      | _TRUE -> true
+      | _FALSE -> false
+      | _NULL -> null
+      | "(" expr ")"
 
-
+// Need priority to compete with CNAME
+_TRUE.10 : "true"i
+_FALSE.10 : "false"i
+_NULL.10  : "null"i
 _NOT.10 : "not"i
+
 RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
 LOGOPERATOR : "and" | "or"
 

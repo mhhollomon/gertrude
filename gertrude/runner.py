@@ -82,16 +82,16 @@ class QueryRunner :
         expr = filter.data[0]
         logger.debug(f"isinstance(expr, node.Operation) = {isinstance(expr, node.Operation)}")
         logger.debug(f"expr.name() = '{expr.name()}'")
-        if isinstance(expr, node.Operation) and expr.name() in ['eq','gt', 'ge', 'lt', 'le'] \
+        if isinstance(expr, node.Operation) and expr.name in ['eq','gt', 'ge', 'lt', 'le'] \
             and isinstance(expr.left, node.ColumnName) and isinstance(expr.right, node.Literal) \
             and table.spec_for_column(expr.left.name) is not None \
             and table.find_index_for_column(expr.left.name) is not None :
 
             key = expr.right.calc({})
             index_name = table.find_index_for_column(expr.left.name)
-            logger.debug(f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name()}")
+            logger.debug(f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name}")
             scan= table.index_scan(index_name, key, op=expr.name()) # type: ignore
-            description = f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name()}"
+            description = f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name}"
             return scan, description
         else :
              return None
