@@ -458,7 +458,6 @@ Fan out will be 1000 (probably).
     - case statement
     - between
 
-- Create a configuration framework.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
 - Handle missing insert values.
