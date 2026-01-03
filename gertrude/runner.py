@@ -1,10 +1,10 @@
 from types import GeneratorType
 from typing import Any, Generator, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, SortOp
+from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, SortOp, ToDictOp
 from .table import Table
 
-from .globals import _Row
+from .globals import _Row, GertrudeError
 from .lib import expr_nodes as node
 
 import logging
@@ -16,23 +16,9 @@ class QueryRunner :
         self.steps = steps
 
         self.ops = {
-            OpType.scan : self.scan,
-            OpType.filter : self.filter,
             OpType.select : self.select,
             OpType.add_column : self.add_column,
-            OpType.sort : self.sort,
-            OpType.distinct : self.distinct,
-            OpType.to_dict : self.to_dict
         }
-
-    def scan(self, scan : QueryOp, _ : list[dict] | RowGenerator) -> RowGenerator | list[dict] :
-        gen = cast(RowGenerator, scan.data)
-        return gen
-
-    def filter(self, filter : QueryOp, data : list[dict] | RowGenerator) -> list[dict]  :
-        logger.debug(f"Filtering by {filter.data}")
-        data = [ x._asdict() if isinstance(x, _Row) else x for x in data if all(f.calc(x) for f in filter.data) ]
-        return data
 
     def select(self, select : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
         logger.debug(f"Selecting {select.data}")
@@ -46,42 +32,13 @@ class QueryRunner :
         data = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x) for c,e in columns }} for x in data ]
         return data
 
-    def sort(self, sort : SortOp, data : list[dict] | RowGenerator) -> list[dict] :
-        logger.debug(f"Sorting by {sort.spec}")
-        retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
-        for s in reversed(sort.spec) :
-            retval = sorted(retval, reverse=(s.order == "desc"), \
-                          key=lambda row : s.expr.calc(row._asdict() if isinstance(row, _Row) else row))
-        return retval
-
-    def distinct(self, distinct : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
-        logger.debug(f"Distinct by {distinct.data}")
-        seen : set[tuple] = set()
-        retval : list[dict] = []
-        keys = cast(list[str], distinct.data)
-        for row in data :
-            if isinstance(row, _Row) :
-                row = row._asdict()
-            if len(keys) == 0 :
-                keys = list(row.keys())
-            key = tuple(row[c] for c in keys)
-            if key not in seen :
-                seen.add(key)
-                retval.append(row)
-        return retval
-
-    def to_dict(self, op : QueryOp, data : list[dict] | GeneratorType) -> list[dict]  :
-        if isinstance(data, GeneratorType) :
-            data = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
-        return data
-
     def _test_filter_for_index(self, filter : QueryOp, table : Table) -> tuple[RowGenerator, str] | None :
         if filter.op != OpType.filter :
             # really this is just to get the type system to hush.
             return None
         expr = filter.data[0]
         logger.debug(f"isinstance(expr, node.Operation) = {isinstance(expr, node.Operation)}")
-        logger.debug(f"expr.name() = '{expr.name()}'")
+        logger.debug(f"expr.name = '{expr.name}'")
         if isinstance(expr, node.Operation) and expr.name in ['eq','gt', 'ge', 'lt', 'le'] \
             and isinstance(expr.left, node.ColumnName) and isinstance(expr.right, node.Literal) \
             and table.spec_for_column(expr.left.name) is not None \
@@ -90,7 +47,7 @@ class QueryRunner :
             key = expr.right.calc({})
             index_name = table.find_index_for_column(expr.left.name)
             logger.debug(f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name}")
-            scan= table.index_scan(index_name, key, op=expr.name()) # type: ignore
+            scan = table.index_scan(index_name, key, op=expr.name) # type: ignore
             description = f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name}"
             return scan, description
         else :
@@ -135,7 +92,7 @@ class QueryRunner :
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
 
-        new_plan.append(QueryOp(OpType.to_dict, []))
+        new_plan.append(ToDictOp(None))
 
         return new_plan
 
@@ -145,8 +102,14 @@ class QueryRunner :
         plan = self.plan()
 
         data = []
-        for i, op in enumerate(plan) :
-            data = self.ops[op.op](op, data)
+        for op in plan :
+            if op.op in self.ops :
+                data = self.ops[op.op](op, data)
+            else :
+                data = op.run(data)
+
+        if not isinstance(data, list) :
+            raise GertrudeError(f"Expected list of rows, got {type(data)}")
 
         return data
 

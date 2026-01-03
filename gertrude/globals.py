@@ -14,6 +14,9 @@ TYPES = {
     "bool" : bool,
 }
 
+class GertrudeError(RuntimeError) :
+    pass
+
 from .int_id import IntegerIdGenerator
 from .cache import LRUCache
 

@@ -8,6 +8,7 @@ from gertrude.util import desc
 @pytest.fixture(scope="function", autouse=True)
 def setup_logging(request, caplog):
     caplog.set_level(logging.DEBUG, logger="gertrude.runner")
+    caplog.set_level(logging.DEBUG, logger="gertrude.lib.plan")
     caplog.set_level(logging.DEBUG, logger="gertrude.expression")
     caplog.set_level(logging.DEBUG, logger="gertrude.transformer")
     request.cls.caplog = caplog

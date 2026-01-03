@@ -30,7 +30,7 @@ class Query:
         for c in conditions :
             e = expr_parse(c)
             expr.append(e)
-        self.steps.append(plan.QueryOp(plan.OpType.filter, expr))
+        self.steps.append(plan.FilterOp(expr))
         return self
 
     def select(self, *expressions : Tuple[str, str] |str) -> Self :
@@ -47,7 +47,7 @@ class Query:
         return self
 
     def distinct(self, *columns : str) -> Self :
-        self.steps.append(plan.QueryOp(plan.OpType.distinct, columns))
+        self.steps.append(plan.DistinctOp(list(columns)))
         return self
 
     def _create_runner(self) -> QueryRunner :
