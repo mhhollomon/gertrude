@@ -151,9 +151,5 @@ class QueryRunner :
         return data
 
     def show_plan(self) -> list[str] :
-        plan = self.plan()
-        retval : list[str] = []
-        for op in plan :
-            retval.append(str(op))
-
+        retval : list[str] = [str(op) for op in self.plan()]
         return retval
