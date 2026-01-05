@@ -1,10 +1,9 @@
-from types import GeneratorType
-from typing import Any, Generator, cast
+from typing import Any, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, SortOp, ToDictOp
+from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, ToDictOp
 from .table import Table
 
-from .globals import _Row, GertrudeError
+from .globals import GertrudeError
 from .lib import expr_nodes as node
 
 import logging
@@ -14,23 +13,6 @@ class QueryRunner :
     def __init__(self, db : Any, steps : QueryPlan) :
         self.db = db
         self.steps = steps
-
-        self.ops = {
-            OpType.select : self.select,
-            OpType.add_column : self.add_column,
-        }
-
-    def select(self, select : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
-        logger.debug(f"Selecting {select.data}")
-        columns = select.data
-        data = [ { c : e.calc(x) for c,e in columns } for x in data ]
-        return data
-
-    def add_column(self, add_column : QueryOp, data : list[dict] | RowGenerator) -> list[dict] :
-        logger.debug(f"Adding column {add_column.data}")
-        columns = add_column.data
-        data = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x) for c,e in columns }} for x in data ]
-        return data
 
     def _test_filter_for_index(self, filter : QueryOp, table : Table) -> tuple[RowGenerator, str] | None :
         if filter.op != OpType.filter :
@@ -103,10 +85,7 @@ class QueryRunner :
 
         data = []
         for op in plan :
-            if op.op in self.ops :
-                data = self.ops[op.op](op, data)
-            else :
-                data = op.run(data)
+            data = op.run(data)
 
         if not isinstance(data, list) :
             raise GertrudeError(f"Expected list of rows, got {type(data)}")

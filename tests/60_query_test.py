@@ -134,7 +134,7 @@ class TestQuery() :
         plan = query.show_plan()
         print("\n".join(plan))
         assert len(plan) == 3
-        assert plan[-1].startswith("to_dict(")
+        assert plan[-1].startswith("ToDict(")
 
     def test_distinct_query(self) :
         table = self.db.add_table("test", [

@@ -302,6 +302,14 @@ the spec for `select` is one or more of the following.
     - The name of a column to place in the data.
     - An expression string to compute the value.
 
+### ADD_COLUMNS
+Allows you to add multiple columns at once. Like add_column, this can update
+existing columns as well. This will be faster than multiple calls to `add_column()`.
+```python
+q = db.query("my_table").add_columns(("A", "B+1"), ("C", "D+E"))
+```
+Later column definitions may not reference columns added in the same call.
+
 ### sort
 List of one or more keys in the data on which to sort. The implied sort
 order is ascending. Use the utility functions `asc()` and `desc()` to be

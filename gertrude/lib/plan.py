@@ -22,6 +22,7 @@ class OpType(Enum) :
     sort = "sort"
     distinct = "distinct"
     to_dict = "to_dict"
+    project = "project"
 
 @dataclass
 class QueryOp :
@@ -148,10 +149,31 @@ class ToDictOp(QueryOp) :
     def __init__(self, _ : Any) :
         super().__init__(OpType.to_dict, None)
 
+    def __str__(self) :
+        return f"ToDict()"
+
     @override
     def run(self, data : list[dict] | RowGenerator) -> list[dict] :
         if isinstance(data, GeneratorType) :
             retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
         else :
             retval = cast(list[dict[str, Any]], data)
+        return retval
+
+class ProjectOp(QueryOp) :
+    def __init__(self, retain : bool, columns : List[tuple[str, node.ExprNode]]) :
+        super().__init__(OpType.project, [])
+        self.retain = retain
+        self.columns = columns
+
+    def __str__(self) :
+        return f"Project({self.retain}, {self.columns})"
+
+    @override
+    def run(self, data : list[dict] | RowGenerator) -> list[dict] :
+        logger.debug(f"Projecting (retain = {self.retain}) {self.columns}")
+        if self.retain :
+            retval = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x._asdict() if isinstance(x, _Row) else x) for c,e in self.columns }} for x in data ]
+        else :
+            retval = [ { c : e.calc(x._asdict() if isinstance(x, _Row) else x) for c,e in self.columns } for x in data ]
         return retval
