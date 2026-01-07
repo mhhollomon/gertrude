@@ -320,16 +320,21 @@ from gertrude.util import asc, desc
 
 # Sort ascending by cust_id and descending for total
 q=db.query("order_table").sort("cust_id", desc("total"))
+```
 
-### distinct
+### DISTINCT
 Return unique rows from the dataset. If no column names are given,
 it will use all the keys in the rows as they exist at the time of
 operation. If column names are given, only those columns are considered
 when deciding on uniqueness.
+
 ```python
 q = db.query("my_table").distinct()
 q2 = db.query("my_table").distinct("id")
 ```
+
+### LIMIT
+Limit the rows returned by the query.
 
 ## show_plan
 returns a list of strings that represents the plan the runner
