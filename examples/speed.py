@@ -82,9 +82,9 @@ def run_test(db : gertrude.Database, size : int) :
 
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
-    parser.add_argument("--size", type=int, default=100)
-    parser.add_argument("--fanout", type=int, default=80)
-    parser.add_argument("--cache-size", type=int, default=128)
+    parser.add_argument("--size", type=int, default=100, help="Number of rows to insert")
+    parser.add_argument("--fanout", type=int, default=80, help="Index fanout")
+    parser.add_argument("--cache-size", type=int, default=128, help="Index LRU cache size in blocks")
     args = parser.parse_args()
     db = build_db(Path("./output"), args.fanout, args.cache_size)
     run_test(db, args.size,)
