@@ -12,6 +12,7 @@ class Query:
     def __init__(self, parent : Any, table : str) :
         self.parent = parent
         self.steps : plan.QueryPlan = [plan.ReadOp(table)]
+        self.runner_ : QueryRunner | None = None
 
     def _generate_select_step(self, expressions : Tuple[Tuple[str, str] | str, ...], retain : bool) :
         new_exprs = []
@@ -61,12 +62,15 @@ class Query:
     def _create_runner(self) -> QueryRunner :
         # This needs to be scoped due to circular dependencies
 
-        from .database import Database
+        if self.runner_ is None :
+            from .database import Database
 
-        if isinstance(self.parent, Database) :
-            return QueryRunner(self.parent, self.steps)
-        else :
-            raise ValueError(f"Invalid parent type {type(self.parent)}")
+            if isinstance(self.parent, Database) :
+                self.runner_ = QueryRunner(self.parent, self.steps)
+            else :
+                raise ValueError(f"Invalid parent type {type(self.parent)}")
+
+        return self.runner_
 
     def run(self) -> list[dict[str, Any]] :
         return self._create_runner().run()
