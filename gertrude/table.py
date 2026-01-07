@@ -10,7 +10,7 @@ from .lib import heap
 from .globals import (
     NAME_REGEX, DBContext,
     TYPES,
-    _Row, FieldSpec
+    FieldSpec
     )
 
 from .index import Index
@@ -114,7 +114,23 @@ class Table :
         for index in index_path.glob("*") :
             Index._load(index, self.db_ctx)
 
-    def _data_iter(self) :
+    def _row_from_storage(self, in_data) :
+        return dict(zip([x.name for x in self.spec], in_data, strict=True))
+
+    def _row_to_storage(self, in_dict) :
+        return [in_dict[x.name] for x in self.spec]
+
+    def _row_from_dict(self, in_dict) :
+        need = set([x.name for x in self.spec])
+        have = set(in_dict.keys())
+        if len(need - have) > 0 :
+            raise ValueError(f"Missing fields: {need - have}")
+        elif len(have - need) > 0 :
+            raise ValueError(f"Unknown fields: {have - need}")
+
+        return {x.name : in_dict[x.name] for x in self.spec}
+
+    def _data_iter(self) -> Iterable[tuple[str, dict[str, Any]]] :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
@@ -125,7 +141,7 @@ class Table :
                 heap_id = entry.parent.parent.name + heap_id
 
                 data = heap.read(self.db_path / "data", heap_id)
-                record = _Row.from_storage(self.spec, data)
+                record = self._row_from_storage(data)
                 yield (heap_id,record)
 
 
@@ -198,17 +214,14 @@ class Table :
 
         if len(args) == 1 :
             record = args[0]
-            if not isinstance(record, _Row) :
-                if isinstance(record, dict) :
-                    record_object = _Row.from_dict(self.spec, record)
-                else :
-                    record_object = _Row.from_storage(self.spec, record)
+            if isinstance(record, dict) :
+                record_object = self._row_from_dict(record)
             else :
-                record_object = record
+                record_object = self._row_from_storage(record)
         elif len(args) > 1 :
             raise ValueError(f"Invalid number of arguments for insert(): {len(args)}")
         else :
-            record_object = _Row.from_dict(self.spec, **kwargs)
+            record_object = self._row_from_dict(**kwargs)
 
         logger.debug(f"--- record_object = {record_object}")
 
@@ -217,25 +230,25 @@ class Table :
             if not success :
                 raise ValueError(f"Failed to insert record: {msg}")
 
-        heap_id = heap.write(self.db_path / "data", record_object.to_storage())
+        heap_id = heap.write(self.db_path / "data", self._row_to_storage(record_object))
 
         for index in self.indexes.values() :
             index.insert(record_object, heap_id)
 
         return heap_id
 
-    def scan(self) :
+    def scan(self) -> Iterable[dict[str, Any]]:
         for record in self._data_iter() :
             yield record[1]
 
-    def index_scan(self, name : str, key : Any = None, op : str | None = None) :
+    def index_scan(self, name : str, key : Any = None, op : str | None = None) -> Iterable[dict[str, Any]]:
         if name not in self.indexes :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
         for block in self.indexes[name].scan(key, op) :
-            row = _Row.from_storage(self.spec, heap.read(self.db_path / "data", block))
+            row = self._row_from_storage(heap.read(self.db_path / "data", block))
             yield row
 
 
@@ -254,7 +267,7 @@ class Table :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
-        victim = _Row.from_dict(self.spec, row)
+        victim = self._row_from_dict(row)
 
         for block_id, record in self._data_iter() :
             if record == victim :

@@ -133,8 +133,7 @@ class TestQuery() :
         assert data == [{"id" : 2, "name" : "alice"}, {"id" : 3, "name" : "charlie"}]
         plan = query.show_plan()
         print("\n".join(plan))
-        assert len(plan) == 3
-        assert plan[-1].startswith("ToDict(")
+        assert len(plan) == 2
 
     def test_distinct_query(self) :
         table = self.db.add_table("test", [
@@ -191,3 +190,9 @@ class TestQuery() :
                         {"cust" : 2, "item" : "c", "qty" : 60},
                         {"cust" : 2, "item" : "b", "qty" : 50},
                         {"cust" : 2, "item" : "a", "qty" : 40}]
+
+        query = query.limit(2)
+        data = list(query.run())
+
+        assert data == [{"cust" : 1, "item" : "c", "qty" : 30},
+                        {"cust" : 1, "item" : "b", "qty" : 20}]

@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
+from itertools import islice
 from types import GeneratorType
-from typing import Any, Generator, List, cast, override
+from typing import Any, Iterable, List, cast, override
 
-from gertrude.globals import _Row
 from gertrude.util import SortSpec
 from . import expr_nodes as node
 
@@ -11,18 +11,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-type RowGenerator = Generator[_Row, Any, None]
-
 class OpType(Enum) :
     read = "read"
     scan = "scan"
     filter = "filter"
-    select = "select"
-    add_column = "add_column"
     sort = "sort"
     distinct = "distinct"
     to_dict = "to_dict"
     project = "project"
+    limit = "limit"
 
 @dataclass
 class QueryOp :
@@ -32,7 +29,7 @@ class QueryOp :
     def __str__(self) :
         return f"{self.op.value}({self.data})"
 
-    def run(self, data : list[dict] | RowGenerator) -> RowGenerator | list[dict] :
+    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement run()")
 
 type QueryPlan = List[QueryOp]
@@ -53,7 +50,7 @@ class ReadOp(QueryOp) :
         raise NotImplementedError("ReadOp is preplanner and should not be in a planned query.")
 
 class ScanOp(QueryOp) :
-    def __init__(self, data : RowGenerator, description : str = "") :
+    def __init__(self, data : Iterable[dict[str, Any]], description : str = "") :
         super().__init__(OpType.scan, data)
         self.description_ = description
 
@@ -67,9 +64,9 @@ class ScanOp(QueryOp) :
         return f"{self.op.value}({self.description})"
 
     @override
-    def run(self, _ : list[dict] | RowGenerator) -> RowGenerator | list[dict] :
+    def run(self, _ : list[dict]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Scanning {self.description}")
-        gen = cast(RowGenerator, self.data)
+        gen = cast(Iterable[dict[str, Any]], self.data)
         return gen
 
 class FilterOp(QueryOp) :
@@ -81,12 +78,10 @@ class FilterOp(QueryOp) :
         return cast(list[node.ExprNode], self.data)
 
     @override
-    def run(self, data : list[dict] | RowGenerator) -> list[dict] :
+    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Filtering by {self.exprs}")
         retval : list[dict] = []
         for row in data :
-            if isinstance(row, _Row) :
-                row = row._asdict()
             if all(f.calc(row) for f in self.exprs) :
                 retval.append(row)
         return retval
@@ -100,11 +95,11 @@ class SortOp(QueryOp) :
     def spec(self) -> list[SortSpec]:
         return cast(list[SortSpec], self.data)
     @override
-    def run(self, data : list[dict] | RowGenerator) -> list[dict] :
+    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Sorting by {self.spec}")
         # Sort must have a list to work with.
         if isinstance(data, GeneratorType) :
-            retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
+            retval = [ x for x in data ]
         else :
             retval = cast(list[dict[str, Any]], data)
         logger.debug(f"row count in = {len(retval)}")
@@ -127,14 +122,12 @@ class DistinctOp(QueryOp) :
         return cast(list[str], self.data)
 
     @override
-    def run(self, data : list[dict] | RowGenerator) -> list[dict] :
+    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Distinct by {self.keys}")
         seen : set[tuple] = set()
         retval : list[dict] = []
         keys : list[str] = self.keys
         for row in data :
-            if isinstance(row, _Row) :
-                row = row._asdict()
             if len(keys) == 0 :
                 keys = list(row.keys())
                 logger.debug(f"getting keys from row = {keys}")
@@ -144,21 +137,6 @@ class DistinctOp(QueryOp) :
                 retval.append(row)
         return retval
 
-
-class ToDictOp(QueryOp) :
-    def __init__(self, _ : Any) :
-        super().__init__(OpType.to_dict, None)
-
-    def __str__(self) :
-        return f"ToDict()"
-
-    @override
-    def run(self, data : list[dict] | RowGenerator) -> list[dict] :
-        if isinstance(data, GeneratorType) :
-            retval = [ x._asdict() if isinstance(x, _Row) else x for x in data ]
-        else :
-            retval = cast(list[dict[str, Any]], data)
-        return retval
 
 class ProjectOp(QueryOp) :
     def __init__(self, retain : bool, columns : List[tuple[str, node.ExprNode]]) :
@@ -170,10 +148,26 @@ class ProjectOp(QueryOp) :
         return f"Project({self.retain}, {self.columns})"
 
     @override
-    def run(self, data : list[dict] | RowGenerator) -> list[dict] :
+    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Projecting (retain = {self.retain}) {self.columns}")
         if self.retain :
-            retval = [ {**(x._asdict() if isinstance(x, _Row) else x), **{ c : e.calc(x._asdict() if isinstance(x, _Row) else x) for c,e in self.columns }} for x in data ]
+            retval = [ {**x, **{ c : e.calc(x) for c,e in self.columns }} for x in data ]
         else :
-            retval = [ { c : e.calc(x._asdict() if isinstance(x, _Row) else x) for c,e in self.columns } for x in data ]
+            retval = [ { c : e.calc(x) for c,e in self.columns } for x in data ]
         return retval
+
+
+class LimitOp(QueryOp) :
+    def __init__(self, limit : int) :
+        super().__init__(OpType.limit, limit)
+
+    def __str__(self) :
+        return f"Limit({self.data})"
+
+    @property
+    def limit(self) -> int :
+        return cast(int, self.data)
+
+    @override
+    def run(self, data : Iterable[dict[str, Any]] ) -> list[dict] :
+        return list(islice(data, self.limit))

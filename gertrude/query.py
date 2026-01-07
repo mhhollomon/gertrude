@@ -54,6 +54,10 @@ class Query:
         self.steps.append(plan.DistinctOp(list(columns)))
         return self
 
+    def limit(self, limit : int) -> Self :
+        self.steps.append(plan.LimitOp(limit))
+        return self
+
     def _create_runner(self) -> QueryRunner :
         # This needs to be scoped due to circular dependencies
 

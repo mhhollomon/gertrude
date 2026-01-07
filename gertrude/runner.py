@@ -1,6 +1,6 @@
-from typing import Any, cast
+from typing import Any, Iterable, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, RowGenerator, ScanOp, ToDictOp
+from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp
 from .table import Table
 
 from .globals import GertrudeError
@@ -14,7 +14,7 @@ class QueryRunner :
         self.db = db
         self.steps = steps
 
-    def _test_filter_for_index(self, filter : QueryOp, table : Table) -> tuple[RowGenerator, str] | None :
+    def _test_filter_for_index(self, filter : QueryOp, table : Table) -> tuple[Iterable[dict[str, Any]], str] | None :
         if filter.op != OpType.filter :
             # really this is just to get the type system to hush.
             return None
@@ -73,8 +73,6 @@ class QueryRunner :
 
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
-
-        new_plan.append(ToDictOp(None))
 
         return new_plan
 

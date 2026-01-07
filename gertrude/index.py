@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Generator, List, NamedTuple, Optional, Tuple, cast
 import operator as pyops
 
-from .globals import TYPES, DBContext, _Row
+from .globals import TYPES, DBContext
 
 import logging
 logger = logging.getLogger(__name__)
@@ -553,7 +553,7 @@ class Index :
     def column(self) :
         return self._column
 
-    def test_for_insert(self, record : _Row) -> Tuple[bool, str] :
+    def test_for_insert(self, record : dict[str, Any]) -> Tuple[bool, str] :
         """Method to check if the record meets the index constraints.
         This must be called before insert() on the record.
         """
@@ -591,7 +591,7 @@ class Index :
         logger.debug("--- OK")
         return True, ""
 
-    def insert(self, obj : _Row, heap_id : str) :
+    def insert(self, obj : dict[str, Any], heap_id : str) :
         """Insert object into index.
         test_for_insert() must be called first, otherwise constraints may be violated.
         """
