@@ -20,14 +20,11 @@ class OpType(Enum) :
     to_dict = "to_dict"
     project = "project"
     limit = "limit"
+    join = "join"
 
 @dataclass
 class QueryOp :
     op : OpType
-    data : Any
-
-    def __str__(self) :
-        return f"{self.op.value}({self.data})"
 
     def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement run()")
@@ -36,23 +33,31 @@ type QueryPlan = List[QueryOp]
 
 class ReadOp(QueryOp) :
     def __init__(self, table_name : str) :
-        super().__init__(OpType.read, table_name)
+        super().__init__(OpType.read)
+
+        self.table_name_ = table_name
 
     @property
     def table_name(self) -> str :
-        return self.data
+        return self.table_name_
 
     def __repr__(self) :
-        return f"ReadOp('{self.data}')"
+        return f"ReadOp('{self.table_name}')"
 
     @override
     def run(self, _) :
         raise NotImplementedError("ReadOp is preplanner and should not be in a planned query.")
 
 class ScanOp(QueryOp) :
-    def __init__(self, data : Iterable[dict[str, Any]], description : str = "") :
-        super().__init__(OpType.scan, data)
+    def __init__(self, scan : Iterable[dict[str, Any]], description : str = "") :
+        super().__init__(OpType.scan)
+
+        self.scan_ = scan
         self.description_ = description
+
+    @property
+    def scan(self) :
+        return self.scan_
 
     @property
     def description(self) :
@@ -61,21 +66,25 @@ class ScanOp(QueryOp) :
     def __str__(self) :
         if self.description == "" :
             return super().__str__()
-        return f"{self.op.value}({self.description})"
+        return f"ScanOp({self.description})"
 
     @override
     def run(self, _ : list[dict]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Scanning {self.description}")
-        gen = cast(Iterable[dict[str, Any]], self.data)
-        return gen
+        return self.scan
 
 class FilterOp(QueryOp) :
-    def __init__(self, data : List[node.ExprNode]) :
-        super().__init__(OpType.filter, data)
+    def __init__(self, exprs : List[node.ExprNode]) :
+        super().__init__(OpType.filter)
+
+        self.exprs_ = exprs
 
     @property
     def exprs(self) -> list[node.ExprNode] :
-        return cast(list[node.ExprNode], self.data)
+        return self.exprs_
+
+    def __str__(self) :
+        return f"FilterOp({self.exprs})"
 
     @override
     def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
@@ -88,12 +97,18 @@ class FilterOp(QueryOp) :
 
 
 class SortOp(QueryOp) :
-    def __init__(self, data : List[SortSpec]) :
-        super().__init__(OpType.sort, data)
+    def __init__(self, spec : List[SortSpec]) :
+        super().__init__(OpType.sort)
+
+        self.spec_ = spec
+
+    def __str__(self) :
+        return f"SortOp({self.spec})"
 
     @property
     def spec(self) -> list[SortSpec]:
-        return cast(list[SortSpec], self.data)
+        return self.spec_
+
     @override
     def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Sorting by {self.spec}")
@@ -114,12 +129,14 @@ class SortOp(QueryOp) :
 
 
 class DistinctOp(QueryOp) :
-    def __init__(self, data : List[str]) :
-        super().__init__(OpType.distinct, data)
+    def __init__(self, keys : List[str]) :
+        super().__init__(OpType.distinct)
+
+        self.keys_ = keys
 
     @property
     def keys(self) -> list[str] :
-        return cast(list[str], self.data)
+        return self.keys_
 
     @override
     def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
@@ -140,7 +157,8 @@ class DistinctOp(QueryOp) :
 
 class ProjectOp(QueryOp) :
     def __init__(self, retain : bool, columns : List[tuple[str, node.ExprNode]]) :
-        super().__init__(OpType.project, [])
+        super().__init__(OpType.project)
+
         self.retain = retain
         self.columns = columns
 
@@ -159,14 +177,16 @@ class ProjectOp(QueryOp) :
 
 class LimitOp(QueryOp) :
     def __init__(self, limit : int) :
-        super().__init__(OpType.limit, limit)
+        super().__init__(OpType.limit)
+
+        self.limit_ = limit
 
     def __str__(self) :
-        return f"Limit({self.data})"
+        return f"Limit({self.limit})"
 
     @property
     def limit(self) -> int :
-        return cast(int, self.data)
+        return self.limit_
 
     @override
     def run(self, data : Iterable[dict[str, Any]] ) -> list[dict] :

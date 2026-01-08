@@ -1,6 +1,6 @@
 from typing import Any, Iterable, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp
+from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp
 from .table import Table
 
 from .globals import GertrudeError
@@ -18,7 +18,8 @@ class QueryRunner :
         if filter.op != OpType.filter :
             # really this is just to get the type system to hush.
             return None
-        expr = filter.data[0]
+        filter = cast(FilterOp, filter)
+        expr = filter.exprs[0]
         logger.debug(f"isinstance(expr, node.Operation) = {isinstance(expr, node.Operation)}")
         logger.debug(f"expr.name = '{expr.name}'")
         if isinstance(expr, node.Operation) and expr.name in ['eq','gt', 'ge', 'lt', 'le'] \
@@ -51,7 +52,8 @@ class QueryRunner :
         if step.op != OpType.read :
             raise ValueError("First step must be read")
 
-        table_name = step.data
+
+        table_name = cast(ReadOp, step).table_name
         table = db.table(table_name=table_name)
 
         if table is None :
