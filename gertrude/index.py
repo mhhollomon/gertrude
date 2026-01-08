@@ -94,13 +94,11 @@ class Index :
 
 
     def _write_node(self, node_id : int, node : LeafNode | InternalNode, cache : bool = True) :
-        raw_data = cast(bytes, (msgpack.dumps(asdict(node))))
-        self.db_ctx.cache.put(self.id, node_id, raw_data, cache=cache)
+        self.db_ctx.cache.put(self.id, node_id, asdict(node), cache=cache)
 
     def _read_node(self, node_id : int) -> LeafNode | InternalNode:
-        raw_data = self.db_ctx.cache.get(self.id, node_id)
-        data = cast (dict, msgpack.loads(raw_data))
-        if raw_data[0] == _NODE_TYPE_LEAF :
+        data = self.db_ctx.cache.get(self.id, node_id)
+        if data['k'] == _NODE_TYPE_LEAF :
             return LeafNode(**data)
         else :
             return InternalNode(**data)
