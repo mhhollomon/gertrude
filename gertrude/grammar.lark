@@ -10,6 +10,7 @@ caseleg : "when"i logop "then"i logop
 
 ?relop : sum
        | sum RELOPERATOR relop
+       | sum "between"i sum "and"i sum -> between
 
 ?sum : product
     | sum "+" product -> add

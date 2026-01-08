@@ -86,3 +86,6 @@ class ExprTransformer(Transformer) :
             default = node.Literal(None, 'null')
             legs = cast(list[node.CaseLeg], branches)
         return node.CaseStmt(legs, default)
+
+    def between(self, x, low, high) :
+        return node.Operation('rel', pyops.and_, node.Operation('rel', pyops.ge, x, low), node.Operation('rel', pyops.le, x, high))

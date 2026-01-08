@@ -359,7 +359,7 @@ data = q.run()
 - column name in double quotes. (This can be used to select
   columns that were created by select or add_column that don't
   match the criteria for a column name).
-- "+ - * /" normal operator precedence applies. '+' can be used
+- "+ - * / %" normal operator precedence applies. '+' can be used
   with string to concatenate.
 - Any of the above in parentheses.
 - Comparision operators "=", "<", ">", "<=", "=>", "!="
@@ -367,6 +367,8 @@ data = q.run()
   The operators shortcut.
 - "not" operator - Note that this binds rather tightly, so most expressions will
   need to use parentheses.
+- between
+- case/when/then/else - you may have multiple when/then pairs.
 
 # Data layout
 A gertrude database is a directory.
@@ -467,10 +469,6 @@ Fan out will be 1000 (probably).
 ## TODO
 - joins
 - allow reordering of filters when safe to do so.
-- expressions
-    - case statement
-    - between
-
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
 - Handle missing insert values.

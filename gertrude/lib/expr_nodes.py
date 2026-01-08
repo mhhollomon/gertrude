@@ -117,3 +117,21 @@ class CaseStmt(ExprNode) :
     @property
     def name(self) :
         return "case"
+
+@dataclass
+class Between(ExprNode) :
+    arg : ExprNode
+    lower : ExprNode
+    upper : ExprNode
+
+    @property
+    def name(self) :
+        return "between"
+
+    def calc(self, row : dict[str, Any]) -> Any :
+        value = self.arg.calc(row)
+        return value >= self.lower.calc(row) and value <= self.upper.calc(row)
+
+    def to_python(self) :
+        # TODO - fix this
+        return f"{self.arg.to_python()} in range({self.lower.to_python()}, {self.upper.to_python()}"
