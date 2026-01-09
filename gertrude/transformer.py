@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 from lark import Transformer, v_args
 from .lib import expr_nodes as node
 

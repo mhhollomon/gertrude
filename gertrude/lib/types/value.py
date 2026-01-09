@@ -96,18 +96,41 @@ class Value:
     ##############################################################
     # DUNDER METHODS
     ##############################################################
+
+    #
+    # Conversion
+    #
     def __bytes__(self) :
         return self.raw_
+
+    def __str__(self) :
+        return self.as_str()
+
+    def __int__(self) :
+        return self.as_int()
+
+    def __float__(self) :
+        return self.as_float()
+
+    def __bool__(self) :
+        return self.as_bool()
 
     def __repr__(self) :
         return f"Value(type={self.type}, value={self.value})"
 
+    #
+    # COMPARISON
+    #
     def __lt__(self, other) :
         retval = False
         if isinstance(other, Value) :
             if self.type != other.type :
                 raise ValueError("Cannot compare Values of different types")
             if self.type == VALUE_STR_TYPE :
+                # Only need to check this in strings because for
+                # the other types we can just compare the complete raw.
+                if self.is_null :
+                    return other.is_null
                 str_bytes = self.raw_[3:] if self.raw_[1] & 0b10000000 else self.raw_[2:]
                 other_str_bytes = other.raw_[3:] if other.raw_[1] & 0b10000000 else other.raw_[2:]
                 retval = str_bytes < other_str_bytes
@@ -132,6 +155,10 @@ class Value:
             if self.type != other.type :
                 raise ValueError("Cannot compare Values of different types")
             if self.type == VALUE_STR_TYPE :
+                # Only need to check this in strings because for
+                # the other types we can just compare the complete raw.
+                if self.is_null :
+                    return other.is_null
                 str_bytes = self.raw_[3:] if self.raw_[1] & 0b10000000 else self.raw_[2:]
                 other_str_bytes = other.raw_[3:] if other.raw_[1] & 0b10000000 else other.raw_[2:]
                 retval = str_bytes > other_str_bytes
@@ -146,6 +173,47 @@ class Value:
 
     def __ge__(self, other) :
         return self > other or self == other
+
+    def __ne__(self, other) :
+        return not self == other
+
+    #
+    # MATH
+    #
+    def __add__(self, other) :
+        if self.is_null or other.is_null :
+            return Value(self.type, None)
+        sum = self.value + other.value
+        return Value(type(sum), sum)
+
+    def __sub__(self, other) :
+        if self.is_null or other.is_null :
+            return Value(self.type, None)
+        diff = self.value - other.value
+        return Value(type(diff), diff)
+
+    def __mul__(self, other) :
+        if self.is_null or other.is_null :
+            return Value(self.type, None)
+        product = self.value * other.value
+        return Value(type(product), product)
+
+    def __truediv__(self, other) :
+        if self.is_null or other.is_null :
+            return Value(self.type, None)
+        quotient = self.value / other.value
+        return Value(type(quotient), quotient)
+
+    def __mod__(self, other) :
+        if self.is_null or other.is_null :
+            return Value(self.type, None)
+        mod = self.value % other.value
+        return Value(type(mod), mod)
+
+    def __not__(self) :
+        if self.is_null :
+            return Value(self.type, None)
+        return Value(self.type, not self.value)
 
     ##############################################################
     # PUBLIC API
