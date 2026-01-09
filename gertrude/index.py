@@ -1,23 +1,17 @@
 from bisect import bisect_left, insort, bisect_right
-from dataclasses import dataclass, asdict
-from enum import Enum
+from dataclasses import asdict
 import json
-import msgpack
 from pathlib import Path
 from typing import Any, Generator, List, NamedTuple, Optional, Tuple, cast
 import operator as pyops
 
 from .globals import TYPES, DBContext
+from .lib.types.index import *
 
 import logging
 logger = logging.getLogger(__name__)
 
-type KeyTuple = Tuple[bool, Any]
 
-# Used by the block list
-type DataList = List[Tuple[KeyTuple, int]]
-# use by leaf nodes
-type LeafData = List[Tuple[KeyTuple, int]]
 
 class tpi(NamedTuple) :
     block_id : int
@@ -44,28 +38,6 @@ OPERATOR_MAP = {
     '<'  : 'lt',
 }
 
-@dataclass
-class IndexNode :
-    k : str        # node type
-    n : int        # node id
-
-@dataclass
-class LeafNode(IndexNode) :
-    d : LeafData
-
-_NODE_TYPE_LEAF = 'L'
-
-@dataclass
-class InternalNode(IndexNode) :
-    d : DataList
-
-_NODE_TYPE_INTERNAL = 'I'
-
-def make_leaf(node_id : int, d : LeafData) :
-    return LeafNode(_NODE_TYPE_LEAF, node_id, d)
-
-def make_internal(node_id : int, d : DataList) :
-    return InternalNode(_NODE_TYPE_INTERNAL, node_id, d)
 
 class Index :
     def __init__(self, index_name : str, path : Path,
@@ -99,7 +71,7 @@ class Index :
 
     def _read_node(self, node_id : int) -> LeafNode | InternalNode:
         data = self.db_ctx.cache.get(self.id, node_id)
-        if data['k'] == _NODE_TYPE_LEAF :
+        if data['k'] == INDEX_NODE_TYPE_LEAF :
             return LeafNode(**data)
         else :
             return InternalNode(**data)
@@ -242,7 +214,7 @@ class Index :
         next_block_id = parent.d[i][1]
         retval += [tpi(parent.n, i)]
         next_node = self._read_node(next_block_id)
-        if next_node.k == _NODE_TYPE_INTERNAL :
+        if next_node.k == INDEX_NODE_TYPE_INTERNAL :
             next_node = cast(InternalNode, next_node)
             logger.debug(f"_find_block2: calling _find_block2 recursively")
             retval = retval + self._find_block2(key, parent=next_node, lower_bound=lower_bound)
@@ -301,7 +273,7 @@ class Index :
 
 
         maybe_leaf = self._read_node(leaf_id)
-        if maybe_leaf.k == _NODE_TYPE_INTERNAL :
+        if maybe_leaf.k == INDEX_NODE_TYPE_INTERNAL :
             maybe_leaf = cast(InternalNode, maybe_leaf)
             return retval + self._find_block(key, maybe_leaf)
 
@@ -367,7 +339,7 @@ class Index :
 
         parent_id, parent_parent_index = tree_path[-1]
         parent = self._read_node(parent_id)
-        if parent.k == _NODE_TYPE_INTERNAL :
+        if parent.k == INDEX_NODE_TYPE_INTERNAL :
             parent = cast(InternalNode, parent)
         else :
             raise ValueError(f"Invalid node type {parent.k} for internal node {parent_id}")
@@ -404,7 +376,7 @@ class Index :
         else :
             parent_id, parent_parent_index = tree_path[-1]
         parent = self._read_node(parent_id)
-        if parent.k == _NODE_TYPE_INTERNAL :
+        if parent.k == INDEX_NODE_TYPE_INTERNAL :
             parent = cast(InternalNode, parent)
         else :
             raise ValueError(f"Invalid node type {parent.k} for internal node {parent_id}")
@@ -448,7 +420,7 @@ class Index :
         print(f"{prefix}{node.n} {node.k} ({len(node.d)}):")
         prefix = prefix + '  '
 
-        if node.k == _NODE_TYPE_INTERNAL :
+        if node.k == INDEX_NODE_TYPE_INTERNAL :
             node = cast(InternalNode, node)
             for n in node.d :
                 print(f"{prefix}{n[0]} -> {n[1]}")
@@ -487,7 +459,7 @@ class Index :
 
         def scan_path_for_start(self) :
             node = self.index._read_root()
-            while node.k == _NODE_TYPE_INTERNAL :
+            while node.k == INDEX_NODE_TYPE_INTERNAL :
                 node = cast(InternalNode, node)
                 self.scan_path.append(tpi(node.n, 0))
                 node = self.index._read_node(node.d[0][1])
@@ -513,7 +485,7 @@ class Index :
             item = self.scan_path.pop()
             logger.debug(f"__next__: current item = {item}")
             node = self.index._read_node(item.block_id)
-            if node.k == _NODE_TYPE_LEAF :
+            if node.k == INDEX_NODE_TYPE_LEAF :
                 node = cast(LeafNode, node)
                 logger.debug(f"__next__: leaf node = {node.n}, {node.k}, {len(node.d)}")
                 if item.index >= len(node.d) :
@@ -532,7 +504,7 @@ class Index :
                     current_index = item.index+1
                     self.scan_path.append(tpi(node.n, current_index))
                     node = self.index._read_node(node.d[current_index][1])
-                    while node.k == _NODE_TYPE_INTERNAL :
+                    while node.k == INDEX_NODE_TYPE_INTERNAL :
                         node = cast(InternalNode, node)
                         self.scan_path.append(tpi(node.n, 0))
                         node = self.index._read_node(node.d[0][1])
@@ -613,7 +585,7 @@ class Index :
         leaf_id, parent_index = tree_path[-1]
 
         leaf = self._read_node(leaf_id)
-        if leaf.k == _NODE_TYPE_LEAF :
+        if leaf.k == INDEX_NODE_TYPE_LEAF :
             leaf = cast(LeafNode, leaf)
         else :
             raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")
@@ -675,7 +647,7 @@ class Index :
             raise ValueError(f"Key {key} not found in index {self.index_name}")
 
         leaf = self._read_node(leaf_id)
-        if leaf.k == _NODE_TYPE_LEAF :
+        if leaf.k == INDEX_NODE_TYPE_LEAF :
             leaf = cast(LeafNode, leaf)
         else :
             raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")

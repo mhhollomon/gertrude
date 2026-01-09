@@ -19,7 +19,7 @@ class GertrudeError(RuntimeError) :
     pass
 
 from .int_id import IntegerIdGenerator
-from .cache import LRUCache
+from .lib.cache import LRUCache
 
 _DB_OPTIONS = set(["index_fanout"])
 @dataclass

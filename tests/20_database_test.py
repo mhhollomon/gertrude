@@ -8,11 +8,11 @@ def test_db_create(tmp_path) :
     assert db.db_path.exists()
     assert db.db_path.is_dir()
     assert (db_path / "gertrude.conf").read_text() == \
-        f'{{"schema_version": 1, "gertrude_version": "{GERTRUDE_VERSION}", "comment": "first"}}'
+        f'{{"schema_version": 1, "gertrude_version": "{GERTRUDE_VERSION}", "comment": "first", "options": {{"index_fanout": 80, "index_cache_size": 128}}}}'
     assert (db_path / "tables").is_dir()
 
     db2 = Database.open(db_path)
     assert db2.db_path == db_path
     # make sure it didn't rewrite the file
     assert (db_path / "gertrude.conf").read_text() == \
-        f'{{"schema_version": 1, "gertrude_version": "{GERTRUDE_VERSION}", "comment": "first"}}'
+        f'{{"schema_version": 1, "gertrude_version": "{GERTRUDE_VERSION}", "comment": "first", "options": {{"index_fanout": 80, "index_cache_size": 128}}}}'

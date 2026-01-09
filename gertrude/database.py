@@ -1,6 +1,7 @@
 from typing import Iterable, Self
 from pathlib import Path
 import json
+from dataclasses import asdict
 
 from .globals import ( CURRENT_SCHEMA_VERSION,
                       GERTRUDE_VERSION, NAME_REGEX, DBContext, DBOptions
@@ -11,7 +12,7 @@ from .table import Table, FieldSpec
 
 
 from .int_id import IntegerIdGenerator
-from .cache import LRUCache
+from .lib.cache import LRUCache
 
 _OPTIONS = {
     "pk" : bool,
@@ -45,6 +46,7 @@ class Database :
             "schema_version" : CURRENT_SCHEMA_VERSION,
             "gertrude_version" : GERTRUDE_VERSION,
             "comment" : self.comment,
+            "options" : asdict(self.options)
         }
         (self.db_path / "gertrude.conf").write_text(json.dumps(config))
         (self.db_path / "tables").mkdir()
@@ -104,7 +106,7 @@ class Database :
         config = json.loads((db_path / "gertrude.conf").read_text())
         assert config["schema_version"] == CURRENT_SCHEMA_VERSION
         assert config["gertrude_version"] == GERTRUDE_VERSION
-        db = cls(db_path, mode = mode, comment = config["comment"])
+        db = cls(db_path, mode = mode, comment = config["comment"], options = DBOptions(**config["options"]))
         db._open()
 
         return db
