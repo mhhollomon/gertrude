@@ -13,7 +13,7 @@ _NULL_MASK   = 0b00000001
 
 
 class Value:
-    __slots__ = ('raw_')
+    __slots__ = ('raw_', 'value_')
     def __init__(self, type : int, value : Any):
         if not self._valid_type(type) :
             raise ValueError(f"Invalid value type {type}")
@@ -21,6 +21,7 @@ class Value:
         header_byte = _HEADER_FLAG | (type << 2) | int(value is not None)
 
         self.raw_ = header_byte.to_bytes(1, "big") + self._encode_value(type, value)
+        self.value_ = value
 
 
     def _valid_type(self, type : int) -> bool:
@@ -48,6 +49,21 @@ class Value:
         else :
             raise ValueError(f"Invalid value type {type}")
 
+    def _decode_value(self) -> Any :
+        if self.type == VALUE_INT_TYPE :
+            return struct.unpack(">q", self.raw_[1:])[0]
+        elif self.type == VALUE_STR_TYPE :
+            if self.raw_[1] & 0b10000000 :
+                return self.raw_[3:].decode("utf-8")
+            else :
+                return self.raw_[2:].decode("utf-8")
+        elif self.type == VALUE_FLOAT_TYPE :
+            return struct.unpack(">d", self.raw_[1:])[0]
+        elif self.type == VALUE_BOOL_TYPE :
+            return struct.unpack(">?", self.raw_[1:])[0]
+        else :
+            raise ValueError(f"Invalid value type {self.type}")
+
     def __repr__(self) :
         return f"Value(type={self.type}, value={self.value})"
 
@@ -71,19 +87,9 @@ class Value:
     def value(self) -> Any :
         if self.is_null :
             return None
-        if self.type == VALUE_INT_TYPE :
-            return struct.unpack(">q", self.raw_[1:])[0]
-        elif self.type == VALUE_STR_TYPE :
-            if self.raw_[1] & 0b10000000 :
-                return self.raw_[3:].decode("utf-8")
-            else :
-                return self.raw_[2:].decode("utf-8")
-        elif self.type == VALUE_FLOAT_TYPE :
-            return struct.unpack(">d", self.raw_[1:])[0]
-        elif self.type == VALUE_BOOL_TYPE :
-            return struct.unpack(">?", self.raw_[1:])[0]
-        else :
-            raise ValueError(f"Invalid value type {self.type}")
+        if self.value_ is None :
+            self.value_ = self._decode_value()
+        return self.value_
 
     @property
     def raw(self) -> bytes:
