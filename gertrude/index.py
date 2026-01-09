@@ -381,7 +381,7 @@ class Index :
         else :
             node = cast(LeafNode, node)
             for n in node.d :
-                print(f"{prefix}{n[0]} -> {n[1]}")
+                print(f"{prefix}{n[0]} -> {n[1]:016X}")
 
 
     class IndexIterator :
