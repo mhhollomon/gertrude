@@ -17,7 +17,7 @@ type KeyTuple = Tuple[bool, Any]
 # Used by the block list
 type DataList = List[Tuple[KeyTuple, int]]
 # use by leaf nodes
-type LeafData = List[Tuple[KeyTuple, str]]
+type LeafData = List[Tuple[KeyTuple, int]]
 
 class tpi(NamedTuple) :
     block_id : int
@@ -45,25 +45,26 @@ OPERATOR_MAP = {
 }
 
 @dataclass
-class LeafNode :
+class IndexNode :
     k : str        # node type
     n : int        # node id
+
+@dataclass
+class LeafNode(IndexNode) :
     d : LeafData
 
 _NODE_TYPE_LEAF = 'L'
 
 @dataclass
-class InternalNode :
-    k : str       # node type
-    n : int       # node id
+class InternalNode(IndexNode) :
     d : DataList
 
 _NODE_TYPE_INTERNAL = 'I'
 
-def _make_leaf(node_id : int, d : LeafData) :
+def make_leaf(node_id : int, d : LeafData) :
     return LeafNode(_NODE_TYPE_LEAF, node_id, d)
 
-def _make_internal(node_id : int, d : DataList) :
+def make_internal(node_id : int, d : DataList) :
     return InternalNode(_NODE_TYPE_INTERNAL, node_id, d)
 
 class Index :
@@ -162,14 +163,14 @@ class Index :
         while len(records) >= init_fanout :
             new_block_id = self.db_ctx.generate_id()
             root.append((records[0][0], new_block_id))
-            new_node = _make_leaf(new_block_id, records[:init_fanout])
+            new_node = make_leaf(new_block_id, records[:init_fanout])
             self._write_node(new_block_id, new_node, cache=False)
             records = records[init_fanout:]
 
         if len(records) > 0 :
             new_block_id = self.db_ctx.generate_id()
             root.append((records[0][0], new_block_id))
-            new_node = _make_leaf(new_block_id, records)
+            new_node = make_leaf(new_block_id, records)
             self._write_node(new_block_id, new_node, cache=False)
 
         if len(root) > 0 :
@@ -177,11 +178,11 @@ class Index :
         else :
             # create an empty block
             first_block_id = self.db_ctx.generate_id()
-            new_node = _make_leaf(first_block_id, [])
+            new_node = make_leaf(first_block_id, [])
             self._write_node(first_block_id, new_node, cache=False)
             root.append((self._gen_key_tuple(None), first_block_id))
 
-        self._write_node(0, _make_internal(0, root))
+        self._write_node(0, make_internal(0, root))
         #self.print_tree()
 
     @classmethod
@@ -381,9 +382,9 @@ class Index :
         logger.debug(f"left_data = {left_data}")
         logger.debug(f"right_data = {right_data}")
 
-        self._write_node(node.n, _make_leaf(node.n, left_data))
+        self._write_node(node.n, make_leaf(node.n, left_data))
         right_id = self.db_ctx.generate_id()
-        self._write_node(right_id, _make_leaf(right_id, right_data))
+        self._write_node(right_id, make_leaf(right_id, right_data))
 
         parent.d.insert(parent_index+1, (right_data[0][0], right_id))
 
@@ -421,12 +422,12 @@ class Index :
         if splitting_root :
             left_id = self.db_ctx.generate_id()
             right_id = self.db_ctx.generate_id()
-            new_root = _make_internal(0, [])
+            new_root = make_internal(0, [])
             new_root.d.append((self._gen_key_tuple(None), left_id))
             new_root.d.append((right_data[0][0], right_id))
             right_data[0] = (self._gen_key_tuple(None), right_data[0][1])
-            self._write_node(left_id, _make_internal(left_id, left_data))
-            self._write_node(right_id, _make_internal(right_id, right_data))
+            self._write_node(left_id, make_internal(left_id, left_data))
+            self._write_node(right_id, make_internal(right_id, right_data))
             self._write_node(0, new_root)
 
         else :
@@ -434,8 +435,8 @@ class Index :
             right_id = self.db_ctx.generate_id()
             parent.d.insert(parent_index+1, (right_data[0][0], right_id))
             right_data[0] = (self._gen_key_tuple(None), right_data[0][1])
-            self._write_node(node.n, _make_internal(node.n, left_data))
-            self._write_node(right_id, _make_internal(right_id, right_data))
+            self._write_node(node.n, make_internal(node.n, left_data))
+            self._write_node(right_id, make_internal(right_id, right_data))
 
             if len(parent.d) >= self.fanout :
                 self._split_internal(parent, parent_parent_index, tree_path[:-1])
@@ -501,7 +502,7 @@ class Index :
         def __iter__(self) :
             return self
 
-        def __next__(self) -> str :
+        def __next__(self) -> int :
             '''Returns the row heap id.
             Assumes the key has already been skipped if it is not to be included.
             '''
@@ -589,7 +590,7 @@ class Index :
         logger.debug("--- OK")
         return True, ""
 
-    def insert(self, obj : dict[str, Any], heap_id : str) :
+    def insert(self, obj : dict[str, Any], heap_id : int) :
         """Insert object into index.
         test_for_insert() must be called first, otherwise constraints may be violated.
         """
@@ -634,7 +635,7 @@ class Index :
         self._print_tree(0, '')
         print("=== End of tree")
 
-    def scan(self, key : Any = None, op : str | None = None) -> Generator[str, Any, None]:
+    def scan(self, key : Any = None, op : str | None = None) -> Generator[int, Any, None]:
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 

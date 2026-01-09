@@ -233,7 +233,7 @@ class Table :
         heap_id = heap.write(self.db_path / "data", self._row_to_storage(record_object))
 
         for index in self.indexes.values() :
-            index.insert(record_object, heap_id)
+            index.insert(record_object, int(heap_id))
 
         return heap_id
 
