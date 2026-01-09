@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any, Self, Type
 import struct
 
 VALUE_INT_TYPE = 1
@@ -6,17 +6,46 @@ VALUE_STR_TYPE = 2
 VALUE_FLOAT_TYPE = 3
 VALUE_BOOL_TYPE = 4
 
+TYPE_MAP = {
+    int : VALUE_INT_TYPE,
+    str : VALUE_STR_TYPE,
+    float : VALUE_FLOAT_TYPE,
+    bool : VALUE_BOOL_TYPE,
+
+    'int' : VALUE_INT_TYPE,
+    'str' : VALUE_STR_TYPE,
+    'float' : VALUE_FLOAT_TYPE,
+    'bool' : VALUE_BOOL_TYPE
+}
+
+TYPE_NAME = [
+    "INVALID",
+    "int",
+    "str",
+    "float",
+    "bool"
+]
+
 _HEADER_FLAG = 0b11000000
 _TYPE_MASK   = 0b00111100
 #_UNUSED_MASK = 0b00000010 # Future use (maybe)
-_NULL_MASK   = 0b00000001
+_NULL_MASK   = 0b00000001 # actually "NOT null"
+
+def type_const(type : Type | str) -> int :
+    return TYPE_MAP[type]
 
 
 class Value:
     __slots__ = ('raw_', 'value_')
-    def __init__(self, type : int, value : Any):
+
+    def __init__(self, value_type : int | str | Type, value : Any):
+        if isinstance(value_type, (str, Type)) :
+            type = TYPE_MAP.get(value_type, -1)
+        else :
+            type = value_type
+
         if not self._valid_type(type) :
-            raise ValueError(f"Invalid value type {type}")
+            raise ValueError(f"Invalid value type {value_type}")
 
         header_byte = _HEADER_FLAG | (type << 2) | int(value is not None)
 
@@ -64,8 +93,63 @@ class Value:
         else :
             raise ValueError(f"Invalid value type {self.type}")
 
+    ##############################################################
+    # DUNDER METHODS
+    ##############################################################
+    def __bytes__(self) :
+        return self.raw_
+
     def __repr__(self) :
         return f"Value(type={self.type}, value={self.value})"
+
+    def __lt__(self, other) :
+        retval = False
+        if isinstance(other, Value) :
+            if self.type != other.type :
+                raise ValueError("Cannot compare Values of different types")
+            if self.type == VALUE_STR_TYPE :
+                str_bytes = self.raw_[3:] if self.raw_[1] & 0b10000000 else self.raw_[2:]
+                other_str_bytes = other.raw_[3:] if other.raw_[1] & 0b10000000 else other.raw_[2:]
+                retval = str_bytes < other_str_bytes
+            else :
+                retval = self.raw_ < other.raw_
+        elif isinstance(other, bytes) :
+            retval = self.raw_ < other
+        return retval
+
+
+    def __eq__(self, other) :
+        if isinstance(other, Value) :
+            return self.raw_ == other.raw_
+        elif isinstance(other, bytes) :
+            return self.raw_ == other
+        else :
+            return False
+
+    def __gt__(self, other) :
+        retval = False
+        if isinstance(other, Value) :
+            if self.type != other.type :
+                raise ValueError("Cannot compare Values of different types")
+            if self.type == VALUE_STR_TYPE :
+                str_bytes = self.raw_[3:] if self.raw_[1] & 0b10000000 else self.raw_[2:]
+                other_str_bytes = other.raw_[3:] if other.raw_[1] & 0b10000000 else other.raw_[2:]
+                retval = str_bytes > other_str_bytes
+            else :
+                retval = self.raw_ > other.raw_
+        elif isinstance(other, bytes) :
+            retval = self.raw_ > other
+        return retval
+
+    def __le__(self, other) :
+        return self < other or self == other
+
+    def __ge__(self, other) :
+        return self > other or self == other
+
+    ##############################################################
+    # PUBLIC API
+    ##############################################################
 
     @classmethod
     def from_raw(cls, raw : bytes) -> Self:
@@ -79,6 +163,11 @@ class Value:
     @property
     def type(self) -> int:
         return (self.raw_[0] & _TYPE_MASK) >> 2
+
+    @property
+    def type_name(self) -> str :
+        return TYPE_NAME[self.type]
+
     @property
     def is_null(self) -> bool:
         return not bool(self.raw_[0] & _NULL_MASK)

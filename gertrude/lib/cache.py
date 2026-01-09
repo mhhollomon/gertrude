@@ -1,10 +1,21 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import OrderedDict, Tuple, cast
+from .types.value import Value
 
 import msgpack
 
 type CacheKey = Tuple[int, int]
+
+def custom_pack(obj) :
+    if isinstance(obj, Value) :
+        return msgpack.ExtType(1, obj.raw)
+    return obj
+
+def ext_hook(code, data) :
+    if code == 1 :
+        return Value.from_raw(data)
+    return msgpack.ExtType(code, data)
 
 @dataclass
 class CacheStats:
@@ -58,7 +69,7 @@ class LRUCache :
 
         self._stats.misses += 1
         with open(self.paths[index] / f"{block_id:03}", "rb") as f :
-            data = msgpack.unpackb(f.read())
+            data = msgpack.unpackb(f.read(), ext_hook=ext_hook)
             self.cache[(index, block_id)] = data
             if len(self.cache) > self.max_size :
                 self._stats.evictions += 1
@@ -99,4 +110,4 @@ class LRUCache :
             del self.cache[(index, block_id)]
 
         with open(self.paths[index] / f"{block_id:03}", "wb") as f :
-            f.write(cast(bytes, msgpack.dumps(data)))
+            f.write(cast(bytes, msgpack.dumps(data, default=custom_pack, use_bin_type=True)))

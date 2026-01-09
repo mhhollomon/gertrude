@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from typing import Any, List, Tuple
 
+from .value import Value
 
-type KeyTuple = Tuple[bool, Any]
 
 # Used by the block list
-type DataList = List[Tuple[KeyTuple, int]]
+type DataList = List[Tuple[Value, int]]
 # use by leaf nodes
-type LeafData = List[Tuple[KeyTuple, int]]
+type LeafData = List[Tuple[Value, int]]
 
 @dataclass
 class IndexNode :

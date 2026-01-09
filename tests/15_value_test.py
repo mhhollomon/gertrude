@@ -1,4 +1,4 @@
-from gertrude.lib.value import *
+from gertrude.lib.types.value import *
 import pytest
 
 
@@ -68,3 +68,19 @@ def test_from_raw() :
     assert v.type == VALUE_FLOAT_TYPE
     assert v.value == 12.34
     assert v.is_null == False
+
+def test_lt() :
+    assert Value(1, 1) < Value(1, 2)
+    assert not Value(1, 2) < Value(1, 1)
+    assert not Value(1, 1) < Value(1, 1)
+    assert Value(str, 'a') < Value('str', 'b')
+    assert Value(str, 'alice') < Value('str', 'bob')
+    assert Value(bool, False) < Value('bool', True)
+    assert Value(float, 0.1234) < Value('float', 2.3456)
+
+def test_gt() :
+    assert Value(1, 2) > Value(1, 1)
+    assert Value(str, 'b') > Value('str', 'a')
+    assert Value(str, 'bob') > Value('str', 'alice')
+    assert Value(bool, True) > Value('bool', False)
+    assert Value(float, 2.3456) > Value('float', 0.1234)
