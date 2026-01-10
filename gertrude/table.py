@@ -6,6 +6,7 @@ import shutil
 import logging
 
 from .lib import heap
+from .lib.types.heap_id import HeapID
 
 from .globals import (
     NAME_REGEX, DBContext,
@@ -136,7 +137,7 @@ class Table :
 
         for entry in (self.db_path / "data").rglob('*') :
             if entry.is_file() :
-                heap_id = heap.HeapID.from_path(entry)
+                heap_id = HeapID.from_path(entry)
 
                 data = heap.read(self.db_path / "data", heap_id)
                 record = self._row_from_storage(data)
