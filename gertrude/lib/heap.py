@@ -5,7 +5,7 @@ Data changes must be implemented with a read/delete/write cycle.
 from typing import Any
 from nanoid import generate
 from pathlib import Path
-import msgpack
+from . import packer
 
 class HeapID() :
     __slots__ = ('id')
@@ -43,6 +43,10 @@ class HeapID() :
         s = self.__str__()
         return Path(s[0:2]) / s[2:4] / s[4:]
 
+    @classmethod
+    def from_path(cls, path : Path) :
+        return cls(path.parent.parent.name + path.parent.name + path.name)
+
 
 HEAP_ID_ALPHABET = '123456789ABCDEF'
 HEAP_ID_LENGTH = 16
@@ -71,7 +75,7 @@ def write(heap : Path, value : Any) -> HeapID :
     proposed_path.parent.mkdir(parents=True, exist_ok=True)
 
     with proposed_path.open("wb") as f:
-        msgpack.dump(value, f)
+        packer.packf(value, f)
 
     return heap_id
 
@@ -81,7 +85,7 @@ def read(heap : Path, hash_id : str | int | bytes | HeapID) -> Any :
     if not heap_path.exists():
         return None
 
-    return msgpack.unpackb(heap_path.read_bytes())
+    return packer.unpack(heap_path.read_bytes())
 
 def delete(heap : Path, hash_id : str | int | bytes | HeapID) -> Any :
     """ Note that the hash_id is not validated nor are any
@@ -93,7 +97,7 @@ def delete(heap : Path, hash_id : str | int | bytes | HeapID) -> Any :
     if not heap_path.exists():
         return None
 
-    retval = msgpack.unpackb(heap_path.read_bytes())
+    retval = packer.unpack(heap_path.read_bytes())
 
     heap_path.unlink()
 

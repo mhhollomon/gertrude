@@ -130,19 +130,17 @@ class Table :
 
         return {x.name : in_dict[x.name] for x in self.spec}
 
-    def _data_iter(self) -> Iterable[tuple[str, dict[str, Any]]] :
+    def _data_iter(self) -> Iterable[tuple[int, dict[str, Any]]] :
         if not self.open :
             raise ValueError(f"Table {self.name} is closed.")
 
         for entry in (self.db_path / "data").rglob('*') :
             if entry.is_file() :
-                heap_id = entry.name
-                heap_id = entry.parent.name + heap_id
-                heap_id = entry.parent.parent.name + heap_id
+                heap_id = heap.HeapID.from_path(entry)
 
                 data = heap.read(self.db_path / "data", heap_id)
                 record = self._row_from_storage(data)
-                yield (heap_id,record)
+                yield (int(heap_id),record)
 
 
     #################################################################
