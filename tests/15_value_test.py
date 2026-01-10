@@ -57,14 +57,14 @@ def test_float_value() :
     assert v.is_null == True
 
 def test_from_raw() :
-    v = Value.from_raw(b"\xc4")
+    v = Value.from_raw(b"\xc8")
     assert v.type == VALUE_INT_TYPE
     assert v.value == None
     assert v.is_null == True
 
     temp = Value(VALUE_FLOAT_TYPE, 12.34)
 
-    v = Value.from_raw(temp.raw_)
+    v = Value.from_raw(temp.raw)
     assert v.type == VALUE_FLOAT_TYPE
     assert v.value == 12.34
     assert v.is_null == False

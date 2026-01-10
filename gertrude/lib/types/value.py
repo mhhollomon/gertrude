@@ -26,16 +26,50 @@ TYPE_NAME = [
     "bool"
 ]
 
-_HEADER_FLAG = 0b11000000
-_TYPE_MASK   = 0b00111100
-#_UNUSED_MASK = 0b00000010 # Future use (maybe)
-_NULL_MASK   = 0b00000001 # actually "NOT null"
+#
+# HEADER Bits
+#
+# Marker bit (not really needed)
+_HEADER_FLAG  = 0b10000000
+# Is the value encoded or just the header itself.
+_ENCODED_MASK = 0b01000000
+# The value type
+_TYPE_MASK    = 0b00111000
+_TYPE_SHIFT   = 3
+# The null indicator - actually "NOT null"
+_NULL_MASK    = 0b00000100
+_NULL_SHIFT   = 2
+# Reserved
+#_UNUSED_MASK = 0b00000011
 
 def type_const(type : Type | str) -> int :
     return TYPE_MAP[type]
 
 
 class Value:
+    """Class to store a possibly None (Null) value of any type.
+
+    This is designed to be an immutable object.
+
+    The first byte contains both a type indicator and a null indicator.
+    The remaining bytes contain the actual value (if any).
+
+    Thus, a null value only has a single byte - the header byte.
+
+    *Note* that string values do not encode the length of the string.
+    This class is never written "by itself" to a file.
+    Instead msgpack is used to actually serialize it.
+
+    Not having the length of the string makes the comparision of values do-able
+    without having to decode the value.
+    """
+
+    # Both slots are lazy.
+    # If the object is created through the init function, then value_ will
+    # be filled, but only the header byte will be encoded into raw_.
+    # If the object is created through the from_raw() function, then value_
+    # will not be filled, but raw_ will be.
+    #
     __slots__ = ('raw_', 'value_')
 
     def __init__(self, value_type : int | str | Type, value : Any):
@@ -47,14 +81,16 @@ class Value:
         if not self._valid_type(type) :
             raise ValueError(f"Invalid value type {value_type}")
 
-        header_byte = _HEADER_FLAG | (type << 2) | int(value is not None)
-
-        self.raw_ = header_byte.to_bytes(1, "big") + self._encode_value(type, value)
+        # Just encode the header for now
+        self.raw_ = (_HEADER_FLAG | (type << _TYPE_SHIFT) | (int(value is not None) << _NULL_SHIFT)).to_bytes(1, "big")
         self.value_ = value
-
 
     def _valid_type(self, type : int) -> bool:
         return type <=4 and type >= 1
+
+    @property
+    def is_encoded(self) -> bool:
+        return bool(self.raw_[0] & _ENCODED_MASK)
 
     def _encode_value(self, type : int, value : Any) -> bytes :
         if value is None :
@@ -62,15 +98,7 @@ class Value:
         if type == VALUE_INT_TYPE :
             return struct.pack(">q",int(value))
         elif type == VALUE_STR_TYPE :
-            v = str(value).encode("utf-8")
-            if len(v) < 128 :
-                header = len(v).to_bytes(1, "big")
-            elif len(v) < 32767 :
-                header = len(v).to_bytes(2, "big")
-                header = (header[0] | 0b10000000).to_bytes(1, "big") + header[1:]
-            else :
-                raise ValueError("String too long")
-            return header + v
+            return str(value).encode("utf-8")
         elif type == VALUE_FLOAT_TYPE :
             return struct.pack(">d", float(value))
         elif type == VALUE_BOOL_TYPE :
@@ -79,13 +107,12 @@ class Value:
             raise ValueError(f"Invalid value type {type}")
 
     def _decode_value(self) -> Any :
+        if not self.is_encoded :
+            raise ValueError("Value is not encoded")
         if self.type == VALUE_INT_TYPE :
             return struct.unpack(">q", self.raw_[1:])[0]
         elif self.type == VALUE_STR_TYPE :
-            if self.raw_[1] & 0b10000000 :
-                return self.raw_[3:].decode("utf-8")
-            else :
-                return self.raw_[2:].decode("utf-8")
+            return self.raw_[1:].decode("utf-8")
         elif self.type == VALUE_FLOAT_TYPE :
             return struct.unpack(">d", self.raw_[1:])[0]
         elif self.type == VALUE_BOOL_TYPE :
@@ -101,7 +128,7 @@ class Value:
     # Conversion
     #
     def __bytes__(self) :
-        return self.raw_
+        return self.raw
 
     def __str__(self) :
         return self.as_str()
@@ -126,26 +153,17 @@ class Value:
         if isinstance(other, Value) :
             if self.type != other.type :
                 raise ValueError("Cannot compare Values of different types")
-            if self.type == VALUE_STR_TYPE :
-                # Only need to check this in strings because for
-                # the other types we can just compare the complete raw.
-                if self.is_null :
-                    return other.is_null
-                str_bytes = self.raw_[3:] if self.raw_[1] & 0b10000000 else self.raw_[2:]
-                other_str_bytes = other.raw_[3:] if other.raw_[1] & 0b10000000 else other.raw_[2:]
-                retval = str_bytes < other_str_bytes
-            else :
-                retval = self.raw_ < other.raw_
+            retval = self.raw < other.raw
         elif isinstance(other, bytes) :
-            retval = self.raw_ < other
+            retval = self.raw < other
         return retval
 
 
     def __eq__(self, other) :
         if isinstance(other, Value) :
-            return self.raw_ == other.raw_
+            return self.raw == other.raw
         elif isinstance(other, bytes) :
-            return self.raw_ == other
+            return self.raw == other
         else :
             return False
 
@@ -154,18 +172,9 @@ class Value:
         if isinstance(other, Value) :
             if self.type != other.type :
                 raise ValueError("Cannot compare Values of different types")
-            if self.type == VALUE_STR_TYPE :
-                # Only need to check this in strings because for
-                # the other types we can just compare the complete raw.
-                if self.is_null :
-                    return other.is_null
-                str_bytes = self.raw_[3:] if self.raw_[1] & 0b10000000 else self.raw_[2:]
-                other_str_bytes = other.raw_[3:] if other.raw_[1] & 0b10000000 else other.raw_[2:]
-                retval = str_bytes > other_str_bytes
-            else :
-                retval = self.raw_ > other.raw_
+            retval = self.raw > other.raw
         elif isinstance(other, bytes) :
-            retval = self.raw_ > other
+            retval = self.raw > other
         return retval
 
     def __le__(self, other) :
@@ -226,11 +235,11 @@ class Value:
         return obj
 
     def clone(self) -> Self:
-        return self.from_raw(self.raw_)
+        return self.from_raw(self.raw)
 
     @property
     def type(self) -> int:
-        return (self.raw_[0] & _TYPE_MASK) >> 2
+        return (self.raw_[0] & _TYPE_MASK) >> _TYPE_SHIFT
 
     @property
     def type_name(self) -> str :
@@ -250,6 +259,9 @@ class Value:
 
     @property
     def raw(self) -> bytes:
+        if not self.is_encoded :
+            self.raw_ = (self.raw_[0] | _ENCODED_MASK).to_bytes(1, "big")
+            self.raw_ += self._encode_value(self.type, self.value)
         return self.raw_
 
     def as_int(self) -> int :

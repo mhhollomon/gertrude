@@ -528,6 +528,8 @@ class Index :
 
         key : Value = self._gen_value(obj[self._column])
 
+        logger.debug(f"---- Value = {key} for index {self.index_name}")
+
         # In theory, this is not needed since check_for_insert
         # should have been called. But its cheap, so why not.
         if not self.nullable and key.is_null :
