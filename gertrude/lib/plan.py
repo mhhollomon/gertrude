@@ -21,6 +21,7 @@ class OpType(Enum) :
     project = "project"
     limit = "limit"
     join = "join"
+    unwrap = "unwrap"
 
 @dataclass
 class QueryOp :
@@ -191,3 +192,14 @@ class LimitOp(QueryOp) :
     @override
     def run(self, data : Iterable[dict[str, Any]] ) -> list[dict] :
         return list(islice(data, self.limit))
+
+class UnwrapOp(QueryOp) :
+    def __init__(self) :
+        super().__init__(OpType.unwrap)
+
+    def __str__(self) :
+        return f"Unwrap"
+
+    @override
+    def run(self, data : Iterable[dict[str, Any]] ) -> list[dict] :
+        return list(data)

@@ -68,14 +68,15 @@ class Index :
 
 
     def _write_node(self, node_id : int, node : LeafNode | InternalNode, cache : bool = True) :
-        self.db_ctx.cache.put(self.id, node_id, asdict(node), cache=cache)
+        self.db_ctx.cache.put(self.id, node_id, node, cache=cache)
 
     def _read_node(self, node_id : int) -> LeafNode | InternalNode:
         data = self.db_ctx.cache.get(self.id, node_id)
-        if data['k'] == INDEX_NODE_TYPE_LEAF :
-            return LeafNode(**data)
+        if data.k == INDEX_NODE_TYPE_LEAF :
+            data = cast(LeafNode, data)
         else :
-            return InternalNode(**data)
+            data = cast(InternalNode, data)
+        return data
 
 
     def _read_root(self) -> InternalNode :
@@ -125,37 +126,51 @@ class Index :
                 if key is None :
                     raise ValueError(f"Null key in non-nullable index {self.index_name}")
 
-            records.append((self._gen_value(key), heap_id))
+            records.append(LeafItem(self._gen_value(key), heap_id))
 
-        root = []
-        records.sort(key=lambda x : x[0])
+        root : List[InternalItem] = []
+        records.sort(key=lambda x : x.key)
         if len(records) < 10 :
             logger.debug(f"populating index with records = {records}")
 
         init_fanout = int(self.fanout * 0.75)
 
         while len(records) >= init_fanout :
+            # TODO : If there is a chunk of records that are all the same key,
+            # this still does not honor the fanout. However, the index is
+            # at least correct.
             split_point = self._pick_split_point(init_fanout, records)
-            new_block_id = self.db_ctx.generate_id()
-            root.append((records[0][0], new_block_id))
-            new_node = make_leaf(new_block_id, records[:split_point])
-            self._write_node(new_block_id, new_node, cache=False)
+            new_records = records[:split_point]
             records = records[split_point:]
+
+            while len(new_records) > init_fanout :
+                split_point = self._pick_split_point(init_fanout, new_records)
+                new_block_id = self.db_ctx.generate_id()
+                root.append(InternalItem(new_records[0].key, new_block_id))
+                new_node = make_leaf(new_block_id, new_records[:split_point])
+                self._write_node(new_block_id, new_node, cache=False)
+                new_records = new_records[split_point:]
+
+            if len(new_records) > 0 :
+                new_block_id = self.db_ctx.generate_id()
+                root.append(InternalItem(new_records[0].key, new_block_id))
+                new_node = make_leaf(new_block_id, new_records)
+                self._write_node(new_block_id, new_node, cache=False)
 
         if len(records) > 0 :
             new_block_id = self.db_ctx.generate_id()
-            root.append((records[0][0], new_block_id))
+            root.append(InternalItem(records[0].key, new_block_id))
             new_node = make_leaf(new_block_id, records)
             self._write_node(new_block_id, new_node, cache=False)
 
         if len(root) > 0 :
-            root[0] = (self._gen_value(None), root[0][1])
+            root[0] = InternalItem(self._gen_value(None), root[0].node_id)
         else :
             # create an empty block
             first_block_id = self.db_ctx.generate_id()
             new_node = make_leaf(first_block_id, [])
             self._write_node(first_block_id, new_node, cache=False)
-            root.append((self._gen_value(None), first_block_id))
+            root.append(InternalItem(self._gen_value(None), first_block_id))
 
         self._write_node(0, make_internal(0, root))
         #self.print_tree()
@@ -181,9 +196,9 @@ class Index :
         """Check if a key is in a leaf node. If so, return the index.
         """
 
-        i = bisect_left(leaf.d, key, key=lambda x : x[0])
+        i = bisect_left(leaf.d, key, key=lambda x : x.key)
         logger.debug(f"_find_key_in_leaf: i = {i}")
-        if i < len(leaf.d) and leaf.d[i][0] == key :
+        if i < len(leaf.d) and leaf.d[i].key == key :
             return True, i
         else :
             return False, -1
@@ -198,7 +213,7 @@ class Index :
             parent = self._read_root()
         logger.debug(f"_find_block2: Finding pointer in block {parent.n} for key = '{key}'")
         logger.debug(f"_find_block2: lower_bound = {lower_bound}")
-        i = bisect_func(parent.d, key, lo=1, key=lambda x : x[0])
+        i = bisect_func(parent.d, key, lo=1, key=lambda x : x.key)
         logger.debug(f"_find_block2: raw i = {i}")
         # if the index is 1, it is either because we need to
         # look at the block at index 1 or we need to look at
@@ -208,12 +223,12 @@ class Index :
             # we need to look at the block at index 0.
             # If the given key is less that the key at index 1,
             # then we need to look at the block at index 0.
-            if i == len(parent.d) or parent.d[i][0] > key :
+            if i == len(parent.d) or parent.d[i].key > key :
                 i = 0
-        elif i == len(parent.d) or parent.d[i][0] > key :
+        elif i == len(parent.d) or parent.d[i].key > key :
             i -= 1
         logger.debug(f"_find_block2: final i = {i}")
-        next_block_id = parent.d[i][1]
+        next_block_id = parent.d[i].node_id
         retval += [tpi(parent.n, i)]
         next_node = self._read_node(next_block_id)
         if next_node.k == INDEX_NODE_TYPE_INTERNAL :
@@ -223,7 +238,7 @@ class Index :
         else :
             next_node = cast(LeafNode, next_node)
             logger.debug(f"_find_block2: in leaf node {next_block_id}")
-            i = bisect_func(next_node.d, key, key=lambda x : x[0])
+            i = bisect_func(next_node.d, key, key=lambda x : x.key)
             logger.debug(f"_find_block2: leaf i = {i}")
             check_index = i if lower_bound else i-1
             # if i >= len(next_node.d) or tuple(next_node.d[check_index][0]) != key :
@@ -246,7 +261,7 @@ class Index :
             records = node
 
         # Get the split key
-        split_key = records[split_point][0]
+        split_key = records[split_point].key
 
         # How many places to the left do we need to move
         # to get to the first entry with a different key.
@@ -254,7 +269,7 @@ class Index :
         while True:
             if split_point - left_offset < 0 :
                 break
-            if records[split_point - left_offset][0] < split_key :
+            if records[split_point - left_offset].key < split_key :
                 left_offset -= 1
                 break
             left_offset += 1
@@ -265,7 +280,7 @@ class Index :
         while True:
             if split_point + right_offset >= len(records) :
                 break
-            if records[split_point + right_offset][0] > split_key :
+            if records[split_point + right_offset].key > split_key :
                 break
             right_offset += 1
 
@@ -316,7 +331,7 @@ class Index :
         right_id = self.db_ctx.generate_id()
         self._write_node(right_id, make_leaf(right_id, right_data))
 
-        parent.d.insert(parent_index+1, (right_data[0][0], right_id))
+        parent.d.insert(parent_index+1, InternalItem(right_data[0].key, right_id))
 
         if len(parent.d) >= self.fanout :
             self._split_internal(parent, tree_path[:-1])
@@ -354,9 +369,9 @@ class Index :
             left_id = self.db_ctx.generate_id()
             right_id = self.db_ctx.generate_id()
             new_root = make_internal(0, [])
-            new_root.d.append((self._gen_value(None), left_id))
-            new_root.d.append((right_data[0][0], right_id))
-            right_data[0] = (self._gen_value(None), right_data[0][1])
+            new_root.d.append(InternalItem(self._gen_value(None), left_id))
+            new_root.d.append(InternalItem(right_data[0].key, right_id))
+            right_data[0] = InternalItem(self._gen_value(None), right_data[0].node_id)
             self._write_node(left_id, make_internal(left_id, left_data))
             self._write_node(right_id, make_internal(right_id, right_data))
             self._write_node(0, new_root)
@@ -364,8 +379,8 @@ class Index :
         else :
 
             right_id = self.db_ctx.generate_id()
-            parent.d.insert(parent_index+1, (right_data[0][0], right_id))
-            right_data[0] = (self._gen_value(None), right_data[0][1])
+            parent.d.insert(parent_index+1, InternalItem(right_data[0].key, right_id))
+            right_data[0] = InternalItem(self._gen_value(None), right_data[0].node_id)
             self._write_node(node.n, make_internal(node.n, left_data))
             self._write_node(right_id, make_internal(right_id, right_data))
 
@@ -381,13 +396,13 @@ class Index :
 
         if node.k == INDEX_NODE_TYPE_INTERNAL :
             node = cast(InternalNode, node)
-            for n in node.d :
-                print(f"{prefix}{n[0]} -> {n[1]}")
-                self._print_tree(n[1], prefix + ' ')
+            for i,n in enumerate(node.d) :
+                print(f"{prefix}i={i} k={n.key} -> {n.node_id}")
+                self._print_tree(n.node_id, prefix + '  ')
         else :
             node = cast(LeafNode, node)
             for n in node.d :
-                print(f"{prefix}{n[0]} -> {n[1]:016X}")
+                print(f"{prefix}{n.key} -> {n.heap_id:016X}")
 
     #################################################################
     # Public API
@@ -466,7 +481,7 @@ class Index :
             raise ValueError(f"Invalid node type {leaf.k} for leaf node {leaf_id}")
 
         # insort(leaf.d, (key, heap_id), key=lambda x : x[0])
-        leaf.d.insert(leaf_index, (key, heap_id))
+        leaf.d.insert(leaf_index, LeafItem(key, heap_id))
 
         if len(leaf.d) >= self.fanout :
             self._split_leaf(leaf, tree_path[:-1])
@@ -565,7 +580,7 @@ class IndexIterator :
         while node.k == INDEX_NODE_TYPE_INTERNAL :
             node = cast(InternalNode, node)
             self.scan_path.append(tpi(node.n, 0))
-            node = self.index._read_node(node.d[0][1])
+            node = self.index._read_node(node.d[0].node_id)
         # append the leaf
         self.scan_path.append(tpi(node.n, 0))
 
@@ -587,36 +602,45 @@ class IndexIterator :
         if len(self.scan_path) == 0 :
             logger.debug(f"__next__: scan_path is empty - Stopping")
             raise StopIteration
-        item = self.scan_path.pop()
-        logger.debug(f"__next__: current item = {item}")
-        node = self.index._read_node(item.block_id)
+        path_item = self.scan_path.pop()
+        logger.debug(f"__next__: current item = {path_item}")
+        node = self.index._read_node(path_item.block_id)
         if node.k == INDEX_NODE_TYPE_LEAF :
             node = cast(LeafNode, node)
             logger.debug(f"__next__: leaf node = {node.n}, {node.k}, {len(node.d)}")
-            if item.index >= len(node.d) :
+            if path_item.index >= len(node.d) :
+                logger.debug(f"__next__: path_item.index >= len(node.d)")
                 return self.__next__()
             else :
-                if self.pyop is not None and not self.pyop(node.d[item.index][0], self.key) :
+                if self.pyop is not None and not self.pyop(node.d[path_item.index].key, self.key) :
                     raise StopIteration
-                self.scan_path.append(tpi(node.n, item[1]+1))
-                return node.d[item[1]][1]
+                self.scan_path.append(tpi(node.n, path_item[1]+1))
+                logger.debug(f"__next__: (leaf) returning {node.d[path_item.index].heap_id:016X}")
+                return node.d[path_item.index].heap_id
         else :
             node = cast(InternalNode, node)
             logger.debug(f"__next__: internal node = {node.n}, {node.k}, {len(node.d)}")
-            if item[1] >= len(node.d) - 1:
+            if path_item.index >= len(node.d) - 1:
+                logger.debug(f"__next__: path_item.index >= len(node.d) - 1")
                 return self.__next__()
             else :
-                current_index = item.index+1
+                current_index = path_item.index+1
+                logger.debug(f"__next__: path_item.index < len(node.d) - 1 current_index = {current_index} current_key = {node.d[current_index].key}")
+                if self.pyop is not None and not self.pyop(node.d[current_index].key, self.key) :
+                    logger.debug(f"__next__: not {self.pyop.__name__}({node.d[current_index].key}, {self.key})")
+                    raise StopIteration
                 self.scan_path.append(tpi(node.n, current_index))
-                node = self.index._read_node(node.d[current_index][1])
+                node = self.index._read_node(node.d[current_index].node_id)
                 while node.k == INDEX_NODE_TYPE_INTERNAL :
                     node = cast(InternalNode, node)
                     self.scan_path.append(tpi(node.n, 0))
-                    node = self.index._read_node(node.d[0][1])
+                    node = self.index._read_node(node.d[0].node_id)
                 # append the leaf
                 node = cast(LeafNode, node)
-                self.scan_path.append(tpi(node.n, 0))
-                if self.pyop is not None and not self.pyop(node.d[0][0],(False, self.key)) :
+                # we will return the first key below, set lets skip it.
+                self.scan_path.append(tpi(node.n, 1))
+                if self.pyop is not None and not self.pyop(node.d[0].key, self.key) :
                     raise StopIteration
 
-                return node.d[0][1]
+                logger.debug(f"__next__: (internal) returning {node.d[0].heap_id:016X}")
+                return node.d[0].heap_id

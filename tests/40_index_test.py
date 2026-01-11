@@ -2,9 +2,6 @@ from gertrude import Database, cspec
 import logging
 import pytest
 
-from gertrude.index import Index
-from gertrude.table import Table
-
 @pytest.fixture(scope="function", autouse=True)
 def setup_database(request, tmp_path, caplog) :
 

@@ -1,6 +1,6 @@
 from typing import Any, Iterable, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp
+from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp, UnwrapOp
 from .table import Table
 
 from .globals import GertrudeError
@@ -75,6 +75,9 @@ class QueryRunner :
 
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
+
+        if len(new_plan) == 1:
+            new_plan.append(UnwrapOp())
 
         return new_plan
 
