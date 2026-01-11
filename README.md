@@ -84,6 +84,9 @@ Each column is specified by the fields :
 - The column type - Currently only 'str', 'int', 'bool', and 'float' are supported.
   Note that the types are strings not the actual type class.
 - Options. The current options are :
+    - default (any, None) - The value to assign for the field if nothing is specifed
+      during an insert. If nullable is False and neither a value nor a default is given,
+      an exception will be raised during `insert()`.
     - unique (bool, False) - Only a single row may contain any particular value. An
       index will automatically be created to enforce this constraint.
     - nullable (bool, True) - The field may be null.

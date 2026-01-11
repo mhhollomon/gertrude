@@ -1,6 +1,5 @@
-
 from pathlib import Path
-from typing import Dict, Iterable, Any
+from typing import Dict, Iterable, Any, Callable
 import json
 import shutil
 import logging
@@ -131,7 +130,13 @@ class Table :
             for f in need - have :
                 spec = self.spec_map[f]
                 if spec.options["default"] is not None :
-                    in_dict[f] = spec.options["default"]
+                    default = spec.options["default"]
+                    realtype = TYPES[spec.type]
+                    if isinstance(default, Callable) :
+                        default = realtype(default())
+                    else :
+                        default = realtype(default)
+                    in_dict[f] = default
                 elif spec.options["nullable"] :
                     in_dict[f] = None
                 else :
