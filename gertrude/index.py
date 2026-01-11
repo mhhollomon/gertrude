@@ -136,9 +136,7 @@ class Index :
         init_fanout = int(self.fanout * 0.75)
 
         while len(records) >= init_fanout :
-            # TODO : If there is a chunk of records that are all the same key,
-            # this still does not honor the fanout. However, the index is
-            # at least correct.
+            # TODO : The root node may still be too large.
             split_point = self._pick_split_point(init_fanout, records)
             new_records = records[:split_point]
             records = records[split_point:]

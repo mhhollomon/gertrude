@@ -471,12 +471,19 @@ Fan out will be 1000 (probably).
 
 ## TODO
 - joins
-- allow reordering of filters when safe to do so.
+- planner
+    - allow reordering of filters when safe to do so.
+    - Meld adjacent filters.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
-- Handle missing insert values.
 - Check typing on insert values.
-- Create a way to give defaults for inserts.
+- expressions
+    - substr()
+    - unary minus - e.g. `-my_column`
+    - in()
+    - NOT BETWEEN
+    - CURRENT_TIMESTAMP (returns string)
+- allow expressions for column defaults.
 
 ## Technologies
 - [Flit](https://flit.pypa.io/en/stable/) - Python packaging/building.
