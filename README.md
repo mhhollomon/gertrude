@@ -288,15 +288,13 @@ q = db.query("my_table").filter("name = 'bob'").filter("id > 3")
 
 ```
 
-### filter
+### FILTER
 
 A filter is an expression that yields a boolean. Rows are kept if
 the filter returns True for the row. c.f. expressions below
 
-### add_column/select
-These two shape the output data. Select will only output those quantities
-(table columns and computed columns) mentioned. `add_column` keeps all
-fields currently in the data and adds the one specified. It can override
+### SELECT
+Select outputs the ecolumn and/or expressions given. It can override
 an existing column if needed.
 
 the spec for `select` is one or more of the following.
@@ -305,15 +303,28 @@ the spec for `select` is one or more of the following.
     - The name of a column to place in the data.
     - An expression string to compute the value.
 
+```python
+query = db.query("sales_employees").select("name", ("highly_paid", "(salary + bonus) > 100000"))
+```
+
+### ADD_COLUMN
+Adds the specified value to the output while maintaining all other existing columns.
+It can override an existing column if needed.
+
+```python
+query =  db.query("stars").add_column("dist_ly", "parsecs * 3.26156)
+```
+
 ### ADD_COLUMNS
 Allows you to add multiple columns at once. Like add_column, this can update
 existing columns as well. This will be faster than multiple calls to `add_column()`.
+
 ```python
 q = db.query("my_table").add_columns(("A", "B+1"), ("C", "D+E"))
 ```
 Later column definitions may not reference columns added in the same call.
 
-### sort
+### SORT
 List of one or more keys in the data on which to sort. The implied sort
 order is ascending. Use the utility functions `asc()` and `desc()` to be
 explicit.
@@ -356,7 +367,7 @@ print("\n".join(plan))
 data = q.run()
 ...
 ```
-### expression
+### EXPRESSION
 
 - bare column name
 - column name in double quotes. (This can be used to select
@@ -383,6 +394,7 @@ JSON file with top level configuration. Keys include :
 - schema_version - The version of the data layout used.
 - gertrude_version - The version of gertrude that created the database.
 - comment - comment string given when the database was created.
+- configuration items
 
 ### tables
 A directory that contains a sub directory for each table.
@@ -401,14 +413,14 @@ Directory that contains the actual data heap. See below.
 Directory that contains subdirectories for each of the indexes. See below.
 
 ## data (heap) directory
-Each row is represented by a msgpack file. Each row is assigned a 20
+Each row is represented by a msgpack file. Each row is assigned a 16
 character heap_id using [nanoid](https://github.com/puyuan/py-nanoid) using
 the custom alphabet of `0123456789ABCDEF`
 
 Only upper case letters are used to give a fighting chance this works on case
 insensitive file systems (eg windows).
 
-The 20 characters of the heap_id are split into 3 parts (`/XX/YY/[16 chars]`)
+The 16 characters of the heap_id are split into 3 parts (`/XX/YY/[12 chars]`)
 - An upper directory name of the first 2 characters
 - A lower directory name of the next 2 characters
 - A file name of the last 16 characters.
@@ -446,7 +458,7 @@ A leaf node is a dataclase :
 Index nodes are managed by an LRU Cache that is shared across all indexes
 in the database.
 
-Fan out will be 1000 (probably).
+Default fanout is 80.
 
 ## Example layout
 - my-database

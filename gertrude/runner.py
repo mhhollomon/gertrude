@@ -30,7 +30,7 @@ class QueryRunner :
             key = expr.right.calc({})
             index_name = table.find_index_for_column(expr.left.name)
             logger.debug(f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name}")
-            scan = table.index_scan(index_name, key, op=expr.name) # type: ignore
+            scan = table.index_scan(index_name, key, op=expr.name, unwrap=False) # type: ignore
             description = f"Using index '{index_name}' on column {expr.left.name} for key = {key} with operator {expr.name}"
             return scan, description
         else :
@@ -65,7 +65,7 @@ class QueryRunner :
             if scan_return is None :
                 step_index -= 1
                 logger.debug(f"Using table scan to read table {table_name}")
-                new_plan.append(ScanOp(table.scan(), f"table scan of {table_name}"))
+                new_plan.append(ScanOp(table.scan(unwrap=False), f"table scan of {table_name}"))
             else :
                 scan, description = scan_return
                 new_plan.append(ScanOp(scan, description))
@@ -76,8 +76,7 @@ class QueryRunner :
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
 
-        if len(new_plan) == 1:
-            new_plan.append(UnwrapOp())
+        new_plan.append(UnwrapOp())
 
         return new_plan
 

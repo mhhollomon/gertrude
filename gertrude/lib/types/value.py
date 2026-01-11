@@ -145,6 +145,9 @@ class Value:
     def __repr__(self) :
         return f"Value(type={self.type}, value={self.value})"
 
+    def __hash__(self) :
+        return hash(self.raw)
+
     #
     # COMPARISON
     #

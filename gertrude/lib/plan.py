@@ -202,4 +202,4 @@ class UnwrapOp(QueryOp) :
 
     @override
     def run(self, data : Iterable[dict[str, Any]] ) -> list[dict] :
-        return list(data)
+        return [{ k : v.value for k,v in x.items() } for x in data]

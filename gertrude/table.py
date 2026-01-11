@@ -1,3 +1,4 @@
+from .lib.types.value import Value
 from pathlib import Path
 from typing import Dict, Iterable, Any, Callable
 import json
@@ -117,9 +118,14 @@ class Table :
             Index._load(index, self.db_ctx)
 
     def _row_from_storage(self, in_data) :
+        """This assumes the data is in the same order as the spec and that it really
+        does come from storage (values are Values)."""
         return dict(zip([x.name for x in self.spec], in_data, strict=True))
 
-    def _row_to_storage(self, in_dict) :
+    def _row_from_user_tuple(self, in_tuple) -> dict :
+        return {x.name : Value(x.type, TYPES[x.type](y) if y is not None else None) for x, y in zip(self.spec, in_tuple)}
+
+    def _row_to_storage(self, in_dict) -> list :
         return [in_dict[x.name] for x in self.spec]
 
     def _row_from_dict(self, in_dict) :
@@ -146,7 +152,7 @@ class Table :
         elif len(have - need) > 0 :
             raise ValueError(f"Unknown fields: {have - need}")
 
-        return {x.name : in_dict[x.name] for x in self.spec}
+        return {x.name : Value(x.type, TYPES[x.type](in_dict[x.name]) if in_dict[x.name] is not None else None) for x in self.spec}
 
     def _data_iter(self) -> Iterable[tuple[int, dict[str, Any]]] :
         if not self.open :
@@ -160,6 +166,9 @@ class Table :
                 record = self._row_from_storage(data)
                 yield (int(heap_id),record)
 
+
+    def _unwrap(self, data : dict[str, Value] ) -> dict[str, Any] :
+        return {x : y.value for x,y in data.items()}
 
     #################################################################
     # Public API
@@ -253,11 +262,14 @@ class Table :
 
         return heap_id
 
-    def scan(self) -> Iterable[dict[str, Any]]:
+    def scan(self, unwrap : bool = True) -> Iterable[dict[str, Any]]:
         for record in self._data_iter() :
-            yield record[1]
+            if unwrap :
+                yield self._unwrap(record[1])
+            else :
+                yield record[1]
 
-    def index_scan(self, name : str, key : Any = None, op : str | None = None) -> Iterable[dict[str, Any]]:
+    def index_scan(self, name : str, key : Any = None, op : str | None = None, unwrap : bool = True) -> Iterable[dict[str, Any]]:
         if name not in self.indexes :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
@@ -265,7 +277,10 @@ class Table :
 
         for block in self.indexes[name].scan(key, op) :
             row = self._row_from_storage(heap.read(self.db_path / "data", block))
-            yield row
+            if unwrap :
+                yield self._unwrap(row)
+            else :
+                yield row
 
 
 

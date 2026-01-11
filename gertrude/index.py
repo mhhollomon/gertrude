@@ -521,13 +521,13 @@ class Index :
         self.db_ctx.cache.unregister(self.id)
         self.closed = True
 
-    def delete(self, row : dict[Any, str]) :
+    def delete(self, row : dict[Any, Value]) :
         if self.db_ctx.mode == "ro" :
             raise ValueError("Database is in read-only mode.")
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        key = self._gen_value(row[self._column])
+        key = row[self._column]
         tree_path = self._find_block2(key)
 
         leaf_id, leaf_index = tree_path[-1]

@@ -1,20 +1,21 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from .types.value import Value
 from typing import Any, Callable
 
 
 class ExprNode(ABC):
     @abstractmethod
-    def calc(self, row : dict[str, Any]) -> Any:
+    def calc(self, row : dict[str, Value]) -> Value:
         ...
 
     @abstractmethod
-    def to_python(self) :
+    def to_python(self) -> str :
         ...
 
     @property
     @abstractmethod
-    def name(self) :
+    def name(self) -> str :
         ...
 
 
@@ -29,7 +30,7 @@ class Operation(ExprNode) :
     def name(self) :
         return self.op.__name__
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def calc(self, row : dict[str, Value]) -> Value :
         return self.op(self.left.calc(row), self.right.calc(row))
 
     def to_python(self) :
@@ -39,7 +40,7 @@ class Operation(ExprNode) :
 class ColumnName(ExprNode) :
     name_ : str
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def calc(self, row : dict[str, Value]) -> Value :
         try :
             return row[self.name_]
         except KeyError :
@@ -52,12 +53,12 @@ class ColumnName(ExprNode) :
     def name(self) :
         return self.name_
 
-@dataclass
 class Literal(ExprNode) :
-    value : Any
-    vtype : str
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def __init__(self, value : Any, vtype : str) -> None:
+        self.value  = Value(vtype, value)
+
+    def calc(self, row : dict[str, Value]) -> Value :
         return self.value
 
     def to_python(self) :
@@ -65,14 +66,14 @@ class Literal(ExprNode) :
 
     @property
     def name(self) :
-        return self.vtype
+        return self.value.type_name
 
 @dataclass
 class MonoOperation(ExprNode) :
     op : Any
     arg : ExprNode
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def calc(self, row : dict[str, Value]) -> Value :
         return self.op(self.arg.calc(row))
 
     def to_python(self) :
@@ -87,10 +88,10 @@ class CaseLeg(ExprNode) :
     condition : ExprNode
     result : ExprNode
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def calc(self, row : dict[str, Value]) -> Value :
         return self.result.calc(row)
 
-    def matches(self, row : dict[str, Any]) -> bool :
+    def matches(self, row : dict[str, Value]) -> bool :
         return bool(self.condition.calc(row))
 
     def to_python(self) :
@@ -105,7 +106,7 @@ class CaseStmt(ExprNode) :
     legs : list[CaseLeg]
     default : ExprNode
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def calc(self, row : dict[str, Value]) -> Value :
         for leg in self.legs :
             if leg.matches(row) :
                 return leg.calc(row)
@@ -128,7 +129,7 @@ class Between(ExprNode) :
     def name(self) :
         return "between"
 
-    def calc(self, row : dict[str, Any]) -> Any :
+    def calc(self, row : dict[str, Value]) -> Value :
         value = self.arg.calc(row)
         return value >= self.lower.calc(row) and value <= self.upper.calc(row)
 

@@ -1,5 +1,6 @@
+from gertrude.lib.types.value import Value
 from gertrude.expression import expr_parse
-from gertrude.lib.expr_nodes import ExprNode, CaseStmt
+from gertrude.lib.expr_nodes import CaseStmt
 import pytest
 import logging
 
@@ -17,17 +18,17 @@ def test_case_stmt_parse() :
     assert isinstance(ast, CaseStmt)
     assert ast.name == "case"
     assert len(ast.legs) == 2
-    assert ast.default.name == "int"
+    assert ast.default.calc({}).value == 5
 
 def test_no_default() :
     ast = expr_parse("case when 1 then 2 when 3 then 4 end")
     assert isinstance(ast, CaseStmt)
     assert ast.name == "case"
     assert len(ast.legs) == 2
-    assert ast.default.name == "null"
+    assert ast.default.calc({}).value == None
 
 def test_logic() :
     ast = expr_parse("case when year % 400 = 0 then True when year % 100 = 0 then False when year % 4 = 0 then True else False end")
-    assert ast.calc({ "year" : 2000 }) == True
-    assert ast.calc({ "year" : 1900 }) == False
-    assert ast.calc({ "year" : 2001 }) == False
+    assert ast.calc({ "year" : Value(int, 2000) }).value == True
+    assert ast.calc({ "year" : Value(int, 1900) }).value == False
+    assert ast.calc({ "year" : Value(int, 2001) }).value == False

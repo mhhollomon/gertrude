@@ -28,7 +28,7 @@ class ExprTransformer(Transformer) :
     def false(self) :
         return node.Literal(False, 'bool')
     def null(self) :
-        return node.Literal(None, 'null')
+        return node.Literal(None, 'int')
 
     def add(self, x, y) :
         return node.Operation('math', pyops.add, x, y)
@@ -82,7 +82,7 @@ class ExprTransformer(Transformer) :
             default = cast(node.ExprNode, branches[-1])
             legs = cast(list[node.CaseLeg], branches[:-1])
         else :
-            default = node.Literal(None, 'null')
+            default = node.Literal(None, 'int')
             legs = cast(list[node.CaseLeg], branches)
         return node.CaseStmt(legs, default)
 
