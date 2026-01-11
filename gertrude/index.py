@@ -85,6 +85,7 @@ class Index :
         type_constant = type_const(self.coltype)
         return Value(type_constant, key)
 
+    #################################################################
     def _create(self, iterator) :
         if self.path.exists() :
             raise ValueError(f"Index {self.index_name} directory already exists.")
@@ -134,11 +135,12 @@ class Index :
         init_fanout = int(self.fanout * 0.75)
 
         while len(records) >= init_fanout :
+            split_point = self._pick_split_point(init_fanout, records)
             new_block_id = self.db_ctx.generate_id()
             root.append((records[0][0], new_block_id))
-            new_node = make_leaf(new_block_id, records[:init_fanout])
+            new_node = make_leaf(new_block_id, records[:split_point])
             self._write_node(new_block_id, new_node, cache=False)
-            records = records[init_fanout:]
+            records = records[split_point:]
 
         if len(records) > 0 :
             new_block_id = self.db_ctx.generate_id()
@@ -158,6 +160,7 @@ class Index :
         self._write_node(0, make_internal(0, root))
         #self.print_tree()
 
+    #################################################################
     @classmethod
     def _load(cls, path : Path, db_ctx : DBContext) :
         config = json.loads((path / "config").read_text())
@@ -230,15 +233,20 @@ class Index :
         logger.debug(f"_find_block2: returning {retval}")
         return retval
 
-
-    def _pick_split_point(self, node : LeafNode | InternalNode) -> int :
+    #################################################################
+    def _pick_split_point(self, split_point : int, node : LeafNode | InternalNode | LeafData) -> int :
         # Calculate where to split the block.
         # Prefer to split it down the middle, but if
         # there are multiple entries with the same key,
         # we need to make sure all the entries with the same key
         # are in the same block.
-        split_point = self.fanout//2
-        split_key = node.d[split_point][0]
+        if (isinstance(node, LeafNode) or isinstance(node, InternalNode)) :
+            records = node.d
+        else :
+            records = node
+
+        # Get the split key
+        split_key = records[split_point][0]
 
         # How many places to the left do we need to move
         # to get to the first entry with a different key.
@@ -246,7 +254,7 @@ class Index :
         while True:
             if split_point - left_offset < 0 :
                 break
-            if node.d[split_point - left_offset][0] < split_key :
+            if records[split_point - left_offset][0] < split_key :
                 left_offset -= 1
                 break
             left_offset += 1
@@ -255,9 +263,9 @@ class Index :
         # to get to the first entry with a different key.
         right_offset = 0
         while True:
-            if split_point + right_offset >= len(node.d) :
+            if split_point + right_offset >= len(records) :
                 break
-            if node.d[split_point + right_offset][0] > split_key :
+            if records[split_point + right_offset][0] > split_key :
                 break
             right_offset += 1
 
@@ -267,7 +275,7 @@ class Index :
         if left_offset < right_offset :
             new_split_point = split_point - left_offset
             if new_split_point <= 0 :
-                if split_point + right_offset >= len(node.d) :
+                if split_point + right_offset >= len(records) :
                     # The block is full of the same key.
                     # So split down the middle.
                     new_split_point = split_point
@@ -275,7 +283,7 @@ class Index :
                     new_split_point = split_point + right_offset
         else :
             new_split_point = split_point + right_offset
-            if new_split_point >= len(node.d) :
+            if new_split_point >= len(records) :
                 if split_point - left_offset < 0 :
                     # The block is full of the same key.
                     # So split down the middle.
@@ -296,7 +304,7 @@ class Index :
 
         logger.debug(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
 
-        split_point = self._pick_split_point(node)
+        split_point = self._pick_split_point(self.fanout//2, node)
         logger.debug(f"split_point = {split_point}")
 
         left_data = node.d[:split_point]
@@ -334,7 +342,7 @@ class Index :
 
         logger.debug(f"--- splitting {node.n} at parent {parent.n}, index {parent_index}")
 
-        split_point = self._pick_split_point(node)
+        split_point = self._pick_split_point(self.fanout//2, node)
         logger.debug(f"split_point = {split_point}")
 
         left_data = node.d[:split_point]
