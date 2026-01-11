@@ -186,8 +186,6 @@ class Index :
             return False, -1
 
     #################################################################
-    # FIND_BLOCK2
-    #################################################################
     def _find_block2(self, key : Value,
                      parent : Optional[InternalNode] = None,
                      lower_bound : bool = True) -> TreePath :
@@ -383,94 +381,6 @@ class Index :
             for n in node.d :
                 print(f"{prefix}{n[0]} -> {n[1]:016X}")
 
-
-    class IndexIterator :
-        def __init__(self, index : 'Index', key : Value | None = None, op : str | None = None) :
-            # This assumes that parameter sanitizing has already been checked.
-            self.index = index
-            self.key = key
-            self.bound_key = key
-            self.op = op
-
-            #List of tuples of block_id and current index
-            self.scan_path : TreePath = []
-
-            if op in [None, 'le', 'lt'] :
-                logger.debug(f"__init__ : scan_path_for_start")
-                self.scan_path_for_start()
-                self.pyop = getattr(pyops, op) if op is not None else None
-
-            elif op in ['ge', 'gt', 'eq'] :
-                logger.debug(f"__init__ : scan_path_for_key")
-                self.scan_path_for_key(lower_bound=(op != 'gt'))
-                self.pyop = pyops.eq if op == 'eq' else None
-            else :
-                raise RuntimeError(f"Not sure what to do with operator {op}")
-
-            logger.debug(f"__init__ : starting scan_path = {self.scan_path}")
-            logger.debug(f"__init__ : pyops = {self.pyop.__name__ if self.pyop is not None else None}")
-
-        def scan_path_for_start(self) :
-            node = self.index._read_root()
-            while node.k == INDEX_NODE_TYPE_INTERNAL :
-                node = cast(InternalNode, node)
-                self.scan_path.append(tpi(node.n, 0))
-                node = self.index._read_node(node.d[0][1])
-            # append the leaf
-            self.scan_path.append(tpi(node.n, 0))
-
-        def scan_path_for_key(self, lower_bound : bool = True) :
-            if self.key is None :
-                raise RuntimeError("scan_path_for_key called with null key")
-            self.bound_key = None
-            self.scan_path = self.index._find_block2(self.key, lower_bound=lower_bound)
-
-
-        def __iter__(self) :
-            return self
-
-        def __next__(self) -> int :
-            '''Returns the row heap id.
-            Assumes the key has already been skipped if it is not to be included.
-            '''
-            logger.debug(f"__next__: scan_path = {self.scan_path}")
-            if len(self.scan_path) == 0 :
-                logger.debug(f"__next__: scan_path is empty - Stopping")
-                raise StopIteration
-            item = self.scan_path.pop()
-            logger.debug(f"__next__: current item = {item}")
-            node = self.index._read_node(item.block_id)
-            if node.k == INDEX_NODE_TYPE_LEAF :
-                node = cast(LeafNode, node)
-                logger.debug(f"__next__: leaf node = {node.n}, {node.k}, {len(node.d)}")
-                if item.index >= len(node.d) :
-                    return self.__next__()
-                else :
-                    if self.pyop is not None and not self.pyop(node.d[item.index][0], self.key) :
-                        raise StopIteration
-                    self.scan_path.append(tpi(node.n, item[1]+1))
-                    return node.d[item[1]][1]
-            else :
-                node = cast(InternalNode, node)
-                logger.debug(f"__next__: internal node = {node.n}, {node.k}, {len(node.d)}")
-                if item[1] >= len(node.d) - 1:
-                    return self.__next__()
-                else :
-                    current_index = item.index+1
-                    self.scan_path.append(tpi(node.n, current_index))
-                    node = self.index._read_node(node.d[current_index][1])
-                    while node.k == INDEX_NODE_TYPE_INTERNAL :
-                        node = cast(InternalNode, node)
-                        self.scan_path.append(tpi(node.n, 0))
-                        node = self.index._read_node(node.d[0][1])
-                    # append the leaf
-                    node = cast(LeafNode, node)
-                    self.scan_path.append(tpi(node.n, 0))
-                    if self.pyop is not None and not self.pyop(node.d[0][0],(False, self.key)) :
-                        raise StopIteration
-
-                    return node.d[0][1]
-
     #################################################################
     # Public API
     #################################################################
@@ -579,7 +489,7 @@ class Index :
 
         logger.debug(f"--- Scanning index {self.index_name}, key = {key}, op = {op}, mapped_op = {mapped_op}")
 
-        for record in Index.IndexIterator(self, self._gen_value(key), mapped_op) :
+        for record in IndexIterator(self, self._gen_value(key), mapped_op) :
             yield record
 
     def close(self) :
@@ -613,4 +523,92 @@ class Index :
         self._write_node(leaf_id, leaf)
 
 
+#################################################################
+# Iterator
+#################################################################
+class IndexIterator :
+    def __init__(self, index : Index, key : Value | None = None, op : str | None = None) :
+        # This assumes that parameter sanitizing has already been done.
+        self.index = index
+        self.key = key
+        self.bound_key = key
+        self.op = op
 
+        #List of tuples of block_id and current index
+        self.scan_path : TreePath = []
+
+        if op in [None, 'le', 'lt'] :
+            logger.debug(f"__init__ : scan_path_for_start")
+            self.scan_path_for_start()
+            self.pyop = getattr(pyops, op) if op is not None else None
+
+        elif op in ['ge', 'gt', 'eq'] :
+            logger.debug(f"__init__ : scan_path_for_key")
+            self.scan_path_for_key(lower_bound=(op != 'gt'))
+            self.pyop = pyops.eq if op == 'eq' else None
+        else :
+            raise RuntimeError(f"Not sure what to do with operator {op}")
+
+        logger.debug(f"__init__ : starting scan_path = {self.scan_path}")
+        logger.debug(f"__init__ : pyops = {self.pyop.__name__ if self.pyop is not None else None}")
+
+    def scan_path_for_start(self) :
+        node = self.index._read_root()
+        while node.k == INDEX_NODE_TYPE_INTERNAL :
+            node = cast(InternalNode, node)
+            self.scan_path.append(tpi(node.n, 0))
+            node = self.index._read_node(node.d[0][1])
+        # append the leaf
+        self.scan_path.append(tpi(node.n, 0))
+
+    def scan_path_for_key(self, lower_bound : bool = True) :
+        if self.key is None :
+            raise RuntimeError("scan_path_for_key called with null key")
+        self.bound_key = None
+        self.scan_path = self.index._find_block2(self.key, lower_bound=lower_bound)
+
+
+    def __iter__(self) :
+        return self
+
+    def __next__(self) -> int :
+        '''Returns the row heap id.
+        Assumes the key has already been skipped if it is not to be included.
+        '''
+        logger.debug(f"__next__: scan_path = {self.scan_path}")
+        if len(self.scan_path) == 0 :
+            logger.debug(f"__next__: scan_path is empty - Stopping")
+            raise StopIteration
+        item = self.scan_path.pop()
+        logger.debug(f"__next__: current item = {item}")
+        node = self.index._read_node(item.block_id)
+        if node.k == INDEX_NODE_TYPE_LEAF :
+            node = cast(LeafNode, node)
+            logger.debug(f"__next__: leaf node = {node.n}, {node.k}, {len(node.d)}")
+            if item.index >= len(node.d) :
+                return self.__next__()
+            else :
+                if self.pyop is not None and not self.pyop(node.d[item.index][0], self.key) :
+                    raise StopIteration
+                self.scan_path.append(tpi(node.n, item[1]+1))
+                return node.d[item[1]][1]
+        else :
+            node = cast(InternalNode, node)
+            logger.debug(f"__next__: internal node = {node.n}, {node.k}, {len(node.d)}")
+            if item[1] >= len(node.d) - 1:
+                return self.__next__()
+            else :
+                current_index = item.index+1
+                self.scan_path.append(tpi(node.n, current_index))
+                node = self.index._read_node(node.d[current_index][1])
+                while node.k == INDEX_NODE_TYPE_INTERNAL :
+                    node = cast(InternalNode, node)
+                    self.scan_path.append(tpi(node.n, 0))
+                    node = self.index._read_node(node.d[0][1])
+                # append the leaf
+                node = cast(LeafNode, node)
+                self.scan_path.append(tpi(node.n, 0))
+                if self.pyop is not None and not self.pyop(node.d[0][0],(False, self.key)) :
+                    raise StopIteration
+
+                return node.d[0][1]

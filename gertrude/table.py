@@ -21,6 +21,7 @@ OPT_DEFAULT = {
     "pk" : False,
     "unique" : False,
     "nullable" : True,
+    "default" : None
 }
 
 def cspec(name : str, type : str, **kwargs) :
@@ -45,6 +46,7 @@ class Table :
         self.open = True
 
         self.spec : tuple[FieldSpec, ...] = self._reform_spec()
+        self.spec_map = {s.name : s for s in self.spec}
 
     def _drop(self) :
         if not self.open :
@@ -125,7 +127,17 @@ class Table :
         need = set([x.name for x in self.spec])
         have = set(in_dict.keys())
         if len(need - have) > 0 :
-            raise ValueError(f"Missing fields: {need - have}")
+            missing = set()
+            for f in need - have :
+                spec = self.spec_map[f]
+                if spec.options["default"] is not None :
+                    in_dict[f] = spec.options["default"]
+                elif spec.options["nullable"] :
+                    in_dict[f] = None
+                else :
+                    missing.add(f)
+            if len(missing) > 0 :
+                raise ValueError(f"Missing fields: {missing} - not nullable, but no default value defined.")
         elif len(have - need) > 0 :
             raise ValueError(f"Unknown fields: {have - need}")
 
