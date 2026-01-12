@@ -383,6 +383,8 @@ data = q.run()
   need to use parentheses.
 - between
 - case/when/then/else - you may have multiple when/then pairs.
+- `nvl(value, ...)` first non-null value is returned.
+- IN statement
 
 # Data layout
 A gertrude database is a directory.
@@ -492,8 +494,8 @@ Default fanout is 80.
 - expressions
     - substr()
     - unary minus - e.g. `-my_column`
-    - in()
     - NOT BETWEEN
+    - NOT IN
     - CURRENT_TIMESTAMP (returns string)
 - allow expressions for column defaults.
 

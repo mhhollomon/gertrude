@@ -53,6 +53,9 @@ class ExprTransformer(Transformer) :
     def nvl(self, *args) :
         return node.NVLOp(*args)
 
+    def instmt(self, test_value, *args) :
+        return node.INStmt(test_value, args)
+
     def RELOPERATOR(self, x) :
         if x.value == "=" :
             return pyops.eq

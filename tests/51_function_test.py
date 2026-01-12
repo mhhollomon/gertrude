@@ -20,3 +20,10 @@ def test_nvl() :
 
     expr = expr_parse("nvl(Null,2)")
     assert expr.calc({}).value == 2
+
+def test_in() :
+    expr = expr_parse("1 in (1,2,3)")
+    assert expr.calc({}).value == True
+
+    expr = expr_parse("1 in (2,3,4)")
+    assert expr.calc({}).value == False

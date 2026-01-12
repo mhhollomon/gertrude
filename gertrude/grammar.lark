@@ -11,6 +11,7 @@ caseleg : "when"i logop "then"i logop
 ?relop : sum
        | sum RELOPERATOR relop
        | sum "between"i sum "and"i sum -> between
+       | sum _IN "(" expr ("," expr)* ")" -> instmt
 
 ?sum : product
     | sum "+" product -> add
@@ -21,12 +22,13 @@ caseleg : "when"i logop "then"i logop
          | product "/" boolnot -> div
          | product "%" boolnot -> mod
 
+
 ?boolnot : _NOT atom -> bnot
          | atom
 
 ?atom : SQ_STR -> lit_str
       | SIGNED_INT -> lit_int
-      | _NVL expr ("," expr)* ")" -> nvl
+      | _NVL expr ("," expr)* ")"  -> nvl
       | col_name
       | _TRUE -> true
       | _FALSE -> false
@@ -39,6 +41,7 @@ _FALSE.10 : "false"i
 _NULL.10  : "null"i
 _NOT.10 : "not"i
 _NVL.10 : "nvl("i
+_IN.10 : "in"i
 
 RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
 LOGOPERATOR : "and" | "or"

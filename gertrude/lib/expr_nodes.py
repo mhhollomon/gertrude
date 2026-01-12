@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from .types.value import Value
+from .types.value import Value, valueTrue, valueFalse, valueNull
 from typing import Any, Callable, List
 
 
@@ -94,7 +94,7 @@ class NVLOp(ExprNode) :
             value = arg.calc(row)
             if not value.is_null :
                 return value
-        return Value(int, None)
+        return valueNull()
 
     def to_python(self) :
         return self.args[0].to_python()
@@ -102,6 +102,25 @@ class NVLOp(ExprNode) :
     @property
     def name(self) :
         return "nvl"
+
+class INStmt(ExprNode) :
+
+    def __init__(self, left : ExprNode, right : tuple[ExprNode]) :
+        self.left = left
+        self.right = right
+
+    def calc(self, row : dict[str, Value]) -> Value :
+        for x in self.right :
+            if x.calc(row) == self.left.calc(row) :
+                return valueTrue()
+        return valueFalse()
+
+    def to_python(self) :
+        return f"{self.left.to_python()} in soemthing"
+
+    @property
+    def name(self) :
+        return "in"
 
 @dataclass
 class CaseLeg(ExprNode) :
