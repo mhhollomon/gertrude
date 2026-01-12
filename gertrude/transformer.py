@@ -50,6 +50,9 @@ class ExprTransformer(Transformer) :
     def logop(self, left, op, right) :
         return node.Operation('log', op, left, right)
 
+    def nvl(self, *args) :
+        return node.NVLOp(*args)
+
     def RELOPERATOR(self, x) :
         if x.value == "=" :
             return pyops.eq

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from .types.value import Value
-from typing import Any, Callable
+from typing import Any, Callable, List
 
 
 class ExprNode(ABC):
@@ -82,6 +82,26 @@ class MonoOperation(ExprNode) :
     @property
     def name(self) :
         return self.op.__name__
+
+class NVLOp(ExprNode) :
+    args : List[ExprNode]
+
+    def __init__(self, *args) :
+        self.args = [*args]
+
+    def calc(self, row : dict[str, Value]) -> Value :
+        for arg in self.args :
+            value = arg.calc(row)
+            if not value.is_null :
+                return value
+        return Value(int, None)
+
+    def to_python(self) :
+        return self.args[0].to_python()
+
+    @property
+    def name(self) :
+        return "nvl"
 
 @dataclass
 class CaseLeg(ExprNode) :

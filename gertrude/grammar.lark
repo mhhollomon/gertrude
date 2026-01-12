@@ -26,6 +26,7 @@ caseleg : "when"i logop "then"i logop
 
 ?atom : SQ_STR -> lit_str
       | SIGNED_INT -> lit_int
+      | _NVL expr ("," expr)* ")" -> nvl
       | col_name
       | _TRUE -> true
       | _FALSE -> false
@@ -37,6 +38,7 @@ _TRUE.10 : "true"i
 _FALSE.10 : "false"i
 _NULL.10  : "null"i
 _NOT.10 : "not"i
+_NVL.10 : "nvl("i
 
 RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
 LOGOPERATOR : "and" | "or"
