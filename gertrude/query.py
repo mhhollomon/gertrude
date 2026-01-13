@@ -59,6 +59,10 @@ class Query:
         self.steps.append(plan.LimitOp(limit))
         return self
 
+    def join(self, right : Query, on : str | Tuple[str, str], how : str = "inner" ) -> Self :
+        self.steps.append(plan.JoinOp(right, on, how))
+        return self
+
     def _create_runner(self) -> QueryRunner :
         # This needs to be scoped due to circular dependencies
 

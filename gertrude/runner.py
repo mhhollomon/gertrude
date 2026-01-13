@@ -71,7 +71,7 @@ class QueryRunner :
                 new_plan.append(ScanOp(scan, description))
         else :
             logger.debug(f"Using table scan to read table {table_name}")
-            new_plan.append(ScanOp(table.scan(), f"table scan of {table_name}"))
+            new_plan.append(ScanOp(table.scan(unwrap=False), f"table scan of {table_name}"))
 
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
