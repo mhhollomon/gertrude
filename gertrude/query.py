@@ -6,6 +6,7 @@ from .lib.expr_nodes import ExprNode
 from .lib import plan
 from .runner import QueryRunner
 from .util import SortSpec, asc
+from .lib.types.value import Value
 
 
 class Query:
@@ -59,13 +60,11 @@ class Query:
         self.steps.append(plan.LimitOp(limit))
         return self
 
-    def join(self, right : Query, on : str | Tuple[str, str], how : str = "inner" ) -> Self :
+    def join(self, right : 'Query', on : str | Tuple[str, str], how : str = "inner" ) -> Self :
         self.steps.append(plan.JoinOp(right, on, how))
         return self
 
     def _create_runner(self) -> QueryRunner :
-        # This needs to be scoped due to circular dependencies
-
         if self.runner_ is None :
             from .database import Database
 
@@ -76,8 +75,8 @@ class Query:
 
         return self.runner_
 
-    def run(self) -> list[dict[str, Any]] :
-        return self._create_runner().run()
+    def run(self, values:bool = False) -> list[dict[str, Any]] :
+        return self._create_runner().run(values)
 
     def show_plan(self) -> list[str] :
         return self._create_runner().show_plan()

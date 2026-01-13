@@ -45,15 +45,6 @@ _NULL_SHIFT   = 2
 def type_const(type : Type | str) -> int :
     return TYPE_MAP[type]
 
-# Helpers
-def valueTrue() -> Value :
-    return Value(VALUE_BOOL_TYPE, True)
-
-def valueFalse() -> Value :
-    return Value(VALUE_BOOL_TYPE, False)
-
-def valueNull() -> Value :
-    return Value(VALUE_INT_TYPE, None)
 
 class Value:
     """Class to store a possibly None (Null) value of any type.
@@ -288,3 +279,15 @@ class Value:
     def as_bool(self) -> bool :
         return bool(self.value)
 
+
+##################################################
+## Helpers
+##################################################
+def valueTrue() -> Value :
+    return Value(VALUE_BOOL_TYPE, True)
+
+def valueFalse() -> Value :
+    return Value(VALUE_BOOL_TYPE, False)
+
+def valueNull() -> Value :
+    return Value(VALUE_INT_TYPE, None)

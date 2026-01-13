@@ -122,15 +122,17 @@ class Table :
         does come from storage (values are Values)."""
         return dict(zip([x.name for x in self.spec], in_data, strict=True))
 
-    def _row_from_user_tuple(self, in_tuple) -> dict :
+    def _row_from_user_tuple(self, in_tuple) -> dict[str, Value] :
         return {x.name : Value(x.type, TYPES[x.type](y) if y is not None else None) for x, y in zip(self.spec, in_tuple)}
 
     def _row_to_storage(self, in_dict) -> list :
         return [in_dict[x.name] for x in self.spec]
 
-    def _row_from_dict(self, in_dict) :
+    def _row_from_dict(self, in_dict) -> dict[str, Value] :
+        logger.debug(f"Row from dict: {in_dict}")
         need = set([x.name for x in self.spec])
         have = set(in_dict.keys())
+        logger.debug(f"Have {have}, need {need} need - have = {need - have}")
         if len(need - have) > 0 :
             missing = set()
             for f in need - have :
@@ -149,7 +151,7 @@ class Table :
                     missing.add(f)
             if len(missing) > 0 :
                 raise ValueError(f"Missing fields: {missing} - not nullable, but no default value defined.")
-        elif len(have - need) > 0 :
+        if len(have - need) > 0 :
             raise ValueError(f"Unknown fields: {have - need}")
 
         return {x.name : Value(x.type, TYPES[x.type](in_dict[x.name]) if in_dict[x.name] is not None else None) for x in self.spec}

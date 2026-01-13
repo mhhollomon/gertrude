@@ -6,7 +6,7 @@ from typing import Any, Iterable, List, Tuple, cast, override
 
 from gertrude.util import SortSpec
 from . import expr_nodes as node
-from .types.value import Value
+from .types.value import Value, valueNull
 
 import logging
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class ScanOp(QueryOp) :
         return f"ScanOp({self.description})"
 
     @override
-    def run(self, _ : list[dict]) -> Iterable[dict[str, Any]] :
+    def run(self, _ : list[dict]) -> Iterable[dict[str, Value]] :
         logger.debug(f"Scanning {self.description}")
         return self.scan
 
@@ -89,7 +89,7 @@ class FilterOp(QueryOp) :
         return f"FilterOp({self.exprs})"
 
     @override
-    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
+    def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Value]] :
         logger.debug(f"Filtering by {self.exprs}")
         retval : list[dict] = []
         for row in data :
@@ -112,13 +112,13 @@ class SortOp(QueryOp) :
         return self.spec_
 
     @override
-    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
+    def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Any]] :
         logger.debug(f"Sorting by {self.spec}")
         # Sort must have a list to work with.
         if isinstance(data, GeneratorType) :
             retval = [ x for x in data ]
         else :
-            retval = cast(list[dict[str, Any]], data)
+            retval = cast(list[dict[str, Value]], data)
         logger.debug(f"row count in = {len(retval)}")
         # python sort is stable, so we sort with minor keys first
         # and then the relative ordering is maintained as we sort
@@ -195,15 +195,21 @@ class LimitOp(QueryOp) :
         return list(islice(data, self.limit))
 
 class UnwrapOp(QueryOp) :
-    def __init__(self) :
+    def __init__(self, return_values : bool = False) :
         super().__init__(OpType.unwrap)
+
+        self.return_values_ = return_values
 
     def __str__(self) :
         return f"Unwrap"
 
     @override
     def run(self, data : Iterable[dict[str, Value]] ) -> list[dict[str, Value]] :
-        return [{ k : v.value for k,v in x.items() } for x in data]
+        logger.debug(f"Unwrapping with return_values = {self.return_values_}")
+        if self.return_values_ :
+            return data # type: ignore
+        else :
+            return [{ k : v.value for k,v in x.items() } for x in data]
 
 class JoinOp(QueryOp) :
     def __init__(self, right : Any, on : str | Tuple[str, str], how : str = "inner" ) :
@@ -230,11 +236,25 @@ class JoinOp(QueryOp) :
         elif isinstance(self.on_, tuple) :
             left_col, right_col = self.on_
         else :
-            raise ValueError(f"on must be a string or tuple, got {type(self.on_)}")
+            raise ValueError(f"'on' must be a string or tuple, got {type(self.on_)}")
 
-        hash_map : dict[Value, dict] = {}
-        for row in self.right_.run() :
-            hash_map[row[right_col]] = row
+        hash_map : dict[Value, list[dict[str, Value]]] = {}
+        empty_row : dict[str, Value] | None = None
+        for rrow in self.right_.run(values=True) :
+            if empty_row is None :
+                empty_row = { k : valueNull() for k in rrow.keys() }
+                logger.debug(f"empty_row = {empty_row}")
+
+            logger.debug(f"-- right row = {rrow}")
+
+            key = rrow[right_col]
+            if key in hash_map :
+                hash_map[key].append(rrow)
+            else :
+                hash_map[key] = [rrow]
+
+        logger.debug(f"hash_map count = {len(hash_map)}")
+        logger.debug(f"hash_map = {hash_map}")
 
         retval : list[dict[str, Value]] = []
         # TODO : matching column names from right will overwrite
@@ -242,13 +262,18 @@ class JoinOp(QueryOp) :
         # do self-joins.
         # rename any matching columns as _left, _right suffixes like
         # pandas does.
-        for row in data :
+        for rrow in data :
+            if empty_row is None :
+                raise ValueError("left table has no rows")
+            key = rrow[left_col]
             if self.how_ == "inner" :
-                if row[left_col] in hash_map :
-                    retval.append({**row, **hash_map[row[left_col]]})
+                if key in hash_map :
+                    retval.extend([{**rrow, **x} for x in hash_map[key]])
             elif self.how_ == "left_outer" :
-                if row[left_col] in hash_map :
-                    retval.append({**row, **hash_map[row[left_col]]})
+                if key in hash_map :
+                    retval.extend([{**rrow, **x} for x in hash_map[key]])
                 else :
-                    retval.append(row)
+                    retval.append({**rrow, **empty_row})
+            else :
+                raise ValueError(f"how must be one of inner or left_outer, got {self.how_}")
         return retval

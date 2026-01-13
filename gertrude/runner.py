@@ -76,11 +76,9 @@ class QueryRunner :
         if step_index < len(self.steps)-1 :
             new_plan.extend(self.steps[step_index+1:])
 
-        new_plan.append(UnwrapOp())
-
         return new_plan
 
-    def run(self) -> list[dict[str, Any]] :
+    def run(self, return_values : bool = False) -> list[dict[str, Any]] :
         logger.debug(f"Running query with steps {self.steps}")
 
         plan = self.plan()
@@ -89,10 +87,14 @@ class QueryRunner :
         for op in plan :
             data = op.run(data)
 
-        if not isinstance(data, list) :
-            raise GertrudeError(f"Expected list of rows, got {type(data)}")
+        if return_values :
+            if not isinstance(data, list) :
+                return list(data)
+            else :
+                return data
+        else :
+            return [{ k : v.value for k,v in x.items() } for x in data]
 
-        return data
 
     def show_plan(self) -> list[str] :
         retval : list[str] = [str(op) for op in self.plan()]
