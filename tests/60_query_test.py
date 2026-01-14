@@ -196,3 +196,19 @@ class TestQuery() :
 
         assert data == [{"cust" : 1, "item" : "c", "qty" : 30},
                         {"cust" : 1, "item" : "b", "qty" : 20}]
+
+    def test_rename_columns(self) :
+        table = self.db.add_table("test", [
+            cspec("id", "int"), cspec("name", "str")
+        ])
+
+        table.insert({"id" : 1, "name" : "bob"})
+        table.insert({"id" : 2, "name" : "alice"})
+        table.insert({"id" : 3, "name" : "bob"})
+
+        query = self.db.query("test").rename_columns(("id", "new-id"),("name", "new-name")).sort('"new-id"')
+        data = list(query.run())
+
+        assert data == [{"new-id" : 1, "new-name" : "bob"},
+                        {"new-id" : 2, "new-name" : "alice"},
+                        {"new-id" : 3, "new-name" : "bob"}]

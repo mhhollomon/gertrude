@@ -47,6 +47,10 @@ class Query:
         self._generate_select_step(expressions, True)
         return self
 
+    def rename_columns(self, *columns : Tuple[str, str]) -> Self :
+        self.steps.append(plan.RenameOp(list(columns)))
+        return self
+
     def sort(self, *columns : str | SortSpec) -> Self :
         spec = [ c if isinstance(c, SortSpec) else asc(c) for c in columns ]
         self.steps.append(plan.SortOp(spec))

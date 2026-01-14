@@ -22,7 +22,7 @@ class OpType(Enum) :
     project = "project"
     limit = "limit"
     join = "join"
-    unwrap = "unwrap"
+    rename = "rename"
 
 @dataclass
 class QueryOp :
@@ -176,6 +176,20 @@ class ProjectOp(QueryOp) :
             retval = [ { c : e.calc(x) for c,e in self.columns } for x in data ]
         return retval
 
+class RenameOp(QueryOp) :
+    def __init__(self, columns : List[tuple[str, str]]) :
+        super().__init__(OpType.rename)
+
+        self.columns = {c : e for c,e in columns}
+
+    def __str__(self) :
+        return f"Rename({self.columns})"
+
+    @override
+    def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Value]] :
+        logger.debug(f"Renaming {self.columns}")
+        retval = [ { self.columns.get(c,c) :  x[c] for c in x } for x in data ]
+        return retval
 
 class LimitOp(QueryOp) :
     def __init__(self, limit : int) :
@@ -193,23 +207,6 @@ class LimitOp(QueryOp) :
     @override
     def run(self, data : Iterable[dict[str, Value]] ) -> list[dict[str, Value]] :
         return list(islice(data, self.limit))
-
-class UnwrapOp(QueryOp) :
-    def __init__(self, return_values : bool = False) :
-        super().__init__(OpType.unwrap)
-
-        self.return_values_ = return_values
-
-    def __str__(self) :
-        return f"Unwrap"
-
-    @override
-    def run(self, data : Iterable[dict[str, Value]] ) -> list[dict[str, Value]] :
-        logger.debug(f"Unwrapping with return_values = {self.return_values_}")
-        if self.return_values_ :
-            return data # type: ignore
-        else :
-            return [{ k : v.value for k,v in x.items() } for x in data]
 
 class JoinOp(QueryOp) :
     def __init__(self, right : Any, on : str | Tuple[str, str], how : str = "inner" ) :

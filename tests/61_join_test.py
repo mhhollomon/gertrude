@@ -1,7 +1,7 @@
 import logging
 from gertrude import Database, cspec
 
-def test_inner_join(tmp_path, caplog) :
+def test_join(tmp_path, caplog) :
     db = Database.create(tmp_path / "db")
     emp_table = db.add_table("employees", [
         cspec("id", "int"), cspec("name", "str")

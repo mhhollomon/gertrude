@@ -324,6 +324,19 @@ q = db.query("my_table").add_columns(("A", "B+1"), ("C", "D+E"))
 ```
 Later column definitions may not reference columns added in the same call.
 
+### RENAME_COLUMNS
+Rename name one or more output columns.
+
+```python
+q = db.query("my_table").rename_columns(("A", "B"), ("E", "F"))
+
+# This does not work. You will get an Indexing Error.
+q = db.query("my_table").rename_columns(("A", "B"), ("B", "C"))
+
+# This works, but is weird.
+q = db.query("my_table").rename_columns(("A", "B"), ("D", "A"))
+```
+
 ### SORT
 List of one or more keys in the data on which to sort. The implied sort
 order is ascending. Use the utility functions `asc()` and `desc()` to be
@@ -356,7 +369,7 @@ db.add_table("projects", [
     cspec("name", "str"),
     cspec("owner", "int")
 ])
-right_query = db.query("projects").rename_col(("id", "pid"),("name", "proj_name"))
+right_query = db.query("projects").rename_columns(("id", "pid"),("name", "proj_name"))
 
 full_query = db.query("developers").filter("hire_year < 2024").join(right_query, on=("id", "owner"), how="left_outer")
 ```

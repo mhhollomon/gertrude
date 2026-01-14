@@ -1,9 +1,8 @@
 from typing import Any, Iterable, cast
 
-from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp, UnwrapOp
+from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp
 from .table import Table
 
-from .globals import GertrudeError
 from .lib import expr_nodes as node
 
 import logging
