@@ -336,6 +336,40 @@ from gertrude.util import asc, desc
 q=db.query("order_table").sort("cust_id", desc("total"))
 ```
 
+### JOIN
+Takes a second query and joins it to the current one.
+
+Currently, if a column name is in both the right and left query data,
+the right data will "win". As an example, if you are doing an outer
+join on two tables on an "id" column. For those left rows that do not
+have a match, the output will contain None for the "id" column. `rename_col()`
+can be used to help with this (see example).
+
+```python
+db.add_table("developers", [
+    cspec("id", "int", {pk=True}),
+    cspec("name", "str"),
+    cspec("hire_year", "int")
+])
+db.add_table("projects", [
+    cspec("id", "int", {pk=True}),
+    cspec("name", "str"),
+    cspec("owner", "int")
+])
+right_query = db.query("projects").rename_col(("id", "pid"),("name", "proj_name"))
+
+full_query = db.query("developers").filter("hire_year < 2024").join(right_query, on=("id", "owner"), how="left_outer")
+```
+
+#### how
+One of `inner` or `left_outer`. The expected semantics are applied.
+
+#### on
+One of :
+- a string - this column name is used for both the left and the right.
+- a tuple of string - the first is used for the left and second for the right.
+
+
 ### DISTINCT
 Return unique rows from the dataset. If no column names are given,
 it will use all the keys in the rows as they exist at the time of
@@ -485,9 +519,12 @@ Default fanout is 80.
 
 ## TODO
 - joins
+    - duplicate column names
+    - full outer joins
 - planner
     - allow reordering of filters when safe to do so.
     - Meld adjacent filters.
+    - constant folding in expressions.
 - Figure out multi-key indexes.
 - Honor Fan-out on internal nodes during post insert index creation.
 - Check typing on insert values.
