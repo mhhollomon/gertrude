@@ -1,4 +1,6 @@
-from typing import Any, Iterable, cast
+from typing import Any, Iterable, Set, cast
+
+from .lib.types.colref import ColRef
 
 from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp
 from .table import Table
@@ -98,3 +100,17 @@ class QueryRunner :
     def show_plan(self) -> list[str] :
         retval : list[str] = [str(op) for op in self.plan()]
         return retval
+
+
+    def columns(self) -> Set[ColRef] :
+        cols : Set[ColRef] = set()
+        for op in self.steps :
+            if op.op == OpType.read :
+                table_name = cast(ReadOp, op).table_name
+                table = self.db.table(table_name=table_name)
+                if table is None :
+                    raise ValueError(f"Table {table_name} does not exist.")
+                cols.update(table.columns())
+            else :
+                cols = op.columns(cols)
+        return cols

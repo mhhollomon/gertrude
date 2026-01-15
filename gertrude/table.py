@@ -1,6 +1,7 @@
+from gertrude.lib.types.colref import ColRef
 from .lib.types.value import Value
 from pathlib import Path
-from typing import Dict, Iterable, Any, Callable
+from typing import Dict, Iterable, Any, Callable, Set
 import json
 import shutil
 import logging
@@ -219,6 +220,9 @@ class Table :
 
     def get_spec(self) :
         return self.spec
+
+    def columns(self) -> Set[ColRef] :
+        return set([ColRef(x.name) for x in self.spec])
 
     def spec_for_column(self, column : str) -> FieldSpec | None :
         col = [x for x in self.spec if x.name == column]

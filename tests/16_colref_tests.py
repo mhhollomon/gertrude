@@ -1,8 +1,8 @@
 from gertrude.lib.types.colref import ColRef
 
 def test_colref_fullname() :
-    assert ColRef("foo").full_name() == "foo"
-    assert ColRef("foo", "bar").full_name() == "bar.foo"
+    assert ColRef("foo").full_name == "foo"
+    assert ColRef("foo", "bar").full_name == "bar.foo"
 
 def test_colref_matchedby() :
     assert not ColRef("foo").matchedBy(ColRef("foo", "bar"))

@@ -5,6 +5,7 @@ import itertools
 from types import GeneratorType
 from typing import Any, Iterable, List, Tuple, cast, override
 
+from gertrude.lib.types.colref import ColRef
 from gertrude.util import SortSpec
 from . import expr_nodes as node
 from .types.value import Value, valueNull
@@ -19,7 +20,6 @@ class OpType(Enum) :
     filter = "filter"
     sort = "sort"
     distinct = "distinct"
-    to_dict = "to_dict"
     project = "project"
     limit = "limit"
     join = "join"
@@ -31,6 +31,9 @@ class QueryOp :
 
     def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Value]]:
         raise NotImplementedError("Subclasses must implement run()")
+
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        raise NotImplementedError("Subclasses must implement columns()")
 
 type QueryPlan = List[QueryOp]
 
@@ -98,6 +101,10 @@ class FilterOp(QueryOp) :
                 retval.append(row)
         return retval
 
+    @override
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        return in_cols
+
 
 class SortOp(QueryOp) :
     def __init__(self, spec : List[SortSpec]) :
@@ -130,6 +137,9 @@ class SortOp(QueryOp) :
         logger.debug(f"row count out = {len(retval)}")
         return retval
 
+    @override
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        return in_cols
 
 class DistinctOp(QueryOp) :
     def __init__(self, keys : List[str]) :
@@ -157,39 +167,67 @@ class DistinctOp(QueryOp) :
                 retval.append(row)
         return retval
 
+    @override
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        return in_cols
 
 class ProjectOp(QueryOp) :
     def __init__(self, retain : bool, columns : List[tuple[str, node.ExprNode]]) :
         super().__init__(OpType.project)
 
         self.retain = retain
-        self.columns = columns
+        self.column_list = columns
 
     def __str__(self) :
         return f"Project({self.retain}, {self.columns})"
 
     @override
     def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Value]] :
-        logger.debug(f"Projecting (retain = {self.retain}) {self.columns}")
+        logger.debug(f"Projecting (retain = {self.retain}) {self.column_list}")
         if self.retain :
-            retval = [ {**x, **{ c : e.calc(x) for c,e in self.columns }} for x in data ]
+            retval = [ {**x, **{ c : e.calc(x) for c,e in self.column_list }} for x in data ]
         else :
-            retval = [ { c : e.calc(x) for c,e in self.columns } for x in data ]
+            retval = [ { c : e.calc(x) for c,e in self.column_list } for x in data ]
         return retval
+
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        new_cols = set([ ColRef(c) for c,e in self.column_list ])
+        if self.retain :
+            return in_cols | new_cols
+        else :
+            return new_cols
 
 class RenameOp(QueryOp) :
     def __init__(self, columns : List[tuple[str, str]]) :
         super().__init__(OpType.rename)
 
-        self.columns = {c : e for c,e in columns}
+        self.column_map = {c : e for c,e in columns}
 
     def __str__(self) :
-        return f"Rename({self.columns})"
+        return f"Rename({self.column_map})"
 
     @override
     def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Value]] :
-        logger.debug(f"Renaming {self.columns}")
-        retval = [ { self.columns.get(c,c) :  x[c] for c in x } for x in data ]
+        logger.debug(f"Renaming {self.column_map}")
+        retval = [ { self.column_map.get(c,c) :  x[c] for c in x } for x in data ]
+        return retval
+
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        colref_map = { ColRef(c) : ColRef(e) for c,e in self.column_map.items() }
+        logger.debug(f"-- Rename : colref_map = {colref_map}")
+
+        retval : set[ColRef] = set()
+        for c in in_cols :
+            logger.debug(f"-- Rename : Matching {c}")
+            matches = [ x for x in colref_map if x.matchedBy(c) ]
+            if len(matches) > 1 :
+                raise ValueError(f"Column {c} matched more than one column [{', '.join(map(str, matches))}] in rename")
+            elif len(matches) == 0 :
+                logger.debug(f"-- Rename : No match")
+                retval.add(c)
+            else :
+                logger.debug(f"-- Rename : Found one match {matches[0]}")
+                retval.add(colref_map[matches[0]])
         return retval
 
 class LimitOp(QueryOp) :
@@ -208,6 +246,9 @@ class LimitOp(QueryOp) :
     @override
     def run(self, data : Iterable[dict[str, Value]] ) -> list[dict[str, Value]] :
         return list(islice(data, self.limit))
+
+    def columns(self, in_cols : set[ColRef]) -> set[ColRef] :
+        return in_cols
 
 class JoinOp(QueryOp) :
     def __init__(self, right : Any, on : str | Tuple[str, str], how : str = "inner", rename : bool | tuple[str, str] = False) :
@@ -235,6 +276,16 @@ class JoinOp(QueryOp) :
     def __str__(self) :
         return f"Join({self.right_})"
 
+    def _compute_key_maps(self, left_cols : set[str], right_cols : set[str]) -> tuple[dict[str, str], dict[str, str]] :
+        if self.rename_ :
+            same_keys = left_cols & right_cols
+            if len(same_keys) > 0 :
+                return { k : k+self.left_rename_ for k in same_keys }, { k : k+self.right_rename_ for k in same_keys }
+            else :
+                return {}, {}
+        else :
+            return {}, {}
+
     @override
     def run(self, data : Iterable[dict[str, Value]] ) -> Iterable[dict[str, Value]] :
         if isinstance(self.on_, str) :
@@ -250,23 +301,9 @@ class JoinOp(QueryOp) :
         empty_row : dict[str, Value] = { k : valueNull() for k in right_row.keys() }
         logger.debug(f"empty_row = {empty_row}")
 
-        if self.rename_ :
-            left_keys = set(left_row.keys())
-            right_keys = set(right_row.keys())
-            logger.debug(f"left_keys = {left_keys}")
-            logger.debug(f"right_keys = {right_keys}")
-            same_keys = left_keys & right_keys
-
-            left_key_map = { k : k+self.left_rename_ for k in same_keys }
-            right_key_map = { k : k+self.right_rename_ for k in same_keys }
-
-            logger.debug(f"left_key_map = {left_key_map}")
-            logger.debug(f"right_key_map = {right_key_map}")
-
-        else :
-            left_key_map = {  }
-            right_key_map = { }
-
+        left_keys = set(left_row.keys())
+        right_keys = set(right_row.keys())
+        left_key_map, right_key_map = self._compute_key_maps(left_keys, right_keys)
 
         hash_map : dict[Value, list[dict[str, Value]]] = {}
         for lrow in self.right_.run(values=True) :
@@ -298,4 +335,23 @@ class JoinOp(QueryOp) :
                                    **{right_key_map.get(k,k) : v for k,v in empty_row.items()}})
             else :
                 raise ValueError(f"how must be one of inner or left_outer, got {self.how_}")
+        return retval
+
+    def columns(self, left_cols : set[ColRef]) -> set[ColRef] :
+        """This isn't quite right as it totally ignore aliasing.
+        But join will use alias rather than renaming once aliasing is further along.
+        """
+        right_cols = self.right_.columns()
+
+        if not self.rename_ :
+            return left_cols | right_cols
+
+        retval : set[ColRef] = set()
+        left_key_map, right_key_map = self._compute_key_maps(set(x.name for x in left_cols), set(x.name for x in right_cols))
+
+        for c in left_cols :
+            retval.add(ColRef(left_key_map.get(c.name, c.name)))
+        for c in right_cols :
+            retval.add(ColRef(right_key_map.get(c.name, c.name)))
+
         return retval

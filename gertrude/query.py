@@ -1,4 +1,5 @@
-from typing import Any, List, Self, Tuple, cast
+from typing import Any, List, Self, Set, Tuple, cast
+
 
 from .expression import expr_parse
 
@@ -6,7 +7,7 @@ from .lib.expr_nodes import ExprNode
 from .lib import plan
 from .runner import QueryRunner
 from .util import SortSpec, asc
-from .lib.types.value import Value
+from .lib.types.colref import ColRef
 
 
 class Query:
@@ -85,3 +86,6 @@ class Query:
 
     def show_plan(self) -> list[str] :
         return self._create_runner().show_plan()
+
+    def columns(self) -> Set[ColRef] :
+        return self._create_runner().columns()
