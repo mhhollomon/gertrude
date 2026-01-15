@@ -352,11 +352,12 @@ q=db.query("order_table").sort("cust_id", desc("total"))
 ### JOIN
 Takes a second query and joins it to the current one.
 
-Currently, if a column name is in both the right and left query data,
+If a column name is in both the right and left query data,
 the right data will "win". As an example, if you are doing an outer
 join on two tables on an "id" column. For those left rows that do not
-have a match, the output will contain None for the "id" column. `rename_col()`
-can be used to help with this (see example).
+have a match, the output will contain None for the "id" column.
+
+The `rename` parameter or `rename_columns()` can be used to help with this (see example).
 
 ```python
 db.add_table("developers", [
@@ -369,9 +370,17 @@ db.add_table("projects", [
     cspec("name", "str"),
     cspec("owner", "int")
 ])
-right_query = db.query("projects").rename_columns(("id", "pid"),("name", "proj_name"))
 
-full_query = db.query("developers").filter("hire_year < 2024").join(right_query, on=("id", "owner"), how="left_outer")
+# Using the rename_columns operator
+right_query = db.query("projects").rename_columns(("id", "pid"),("name", "proj_name"))
+full_query = db.query("developers").filter("hire_year < 2024").join(right_query,
+    on=("id", "owner"), how="left_outer")
+
+# Using the rename parameter
+right_query = db.query("projects")
+full_query = db.query("developers").filter("hire_year < 2024").join(right_query,
+    on=("id", "owner"), how="left_outer", rename=True)
+
 ```
 
 #### how
@@ -380,7 +389,32 @@ One of `inner` or `left_outer`. The expected semantics are applied.
 #### on
 One of :
 - a string - this column name is used for both the left and the right.
-- a tuple of string - the first is used for the left and second for the right.
+- a tuple of two strings - the first is used for the left and second for the right.
+
+#### rename
+One of :
+- a boolean - If True, columns that have the same name will have `_left` and
+  `_right` appended.
+- A tuple of two strings - the first will be appended to columns on the left and
+  the second will be appended to the columns from the right.
+
+The default value is `False` - no renaming will be done.
+
+```python
+# No rename - columns on the left will be shadowed by columns of the same name
+# on the right.
+# These are equivalent
+q = left_query.join(right_query)
+q = left_query.join(right_query, rename=False)
+
+# Rename by adding _left and _right to matching column names
+# These are equivalent
+q = left.join(right, rename=True)
+q = left.join(right, rename('_left', '_right'))
+
+# Rename using custom suffixes
+q = left.join(right, rename('_a', '_b'))
+```
 
 
 ### DISTINCT
