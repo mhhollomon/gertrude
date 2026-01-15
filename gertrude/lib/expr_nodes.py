@@ -173,5 +173,4 @@ class Between(ExprNode) :
         return value >= self.lower.calc(row) and value <= self.upper.calc(row)
 
     def to_python(self) :
-        # TODO - fix this
-        return f"{self.arg.to_python()} in range({self.lower.to_python()}, {self.upper.to_python()}"
+        return f"v = {self.arg.to_python()}; v >={self.lower.to_python()} and v <={self.upper.to_python()}"

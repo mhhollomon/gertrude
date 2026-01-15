@@ -48,7 +48,7 @@ class ReadOp(QueryOp) :
         return f"ReadOp('{self.table_name}')"
 
     @override
-    def run(self, _) :
+    def run(self, _) -> Iterable[dict[str, Value]] :
         raise NotImplementedError("ReadOp is preplanner and should not be in a planned query.")
 
 class ScanOp(QueryOp) :
@@ -142,7 +142,7 @@ class DistinctOp(QueryOp) :
         return self.keys_
 
     @override
-    def run(self, data : Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]] :
+    def run(self, data : Iterable[dict[str, Value]]) -> Iterable[dict[str, Value]] :
         logger.debug(f"Distinct by {self.keys}")
         seen : set[tuple] = set()
         retval : list[dict] = []
