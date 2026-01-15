@@ -64,8 +64,9 @@ class Query:
         self.steps.append(plan.LimitOp(limit))
         return self
 
-    def join(self, right : 'Query', on : str | Tuple[str, str], how : str = "inner" ) -> Self :
-        self.steps.append(plan.JoinOp(right, on, how))
+    def join(self, right : 'Query', on : str | Tuple[str, str], how : str = "inner", rename : bool | tuple[str, str] = False) -> Self :
+
+        self.steps.append(plan.JoinOp(right, on, how, rename))
         return self
 
     def _create_runner(self) -> QueryRunner :

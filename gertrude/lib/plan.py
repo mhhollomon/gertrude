@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from itertools import islice
+import itertools
 from types import GeneratorType
 from typing import Any, Iterable, List, Tuple, cast, override
 
@@ -209,7 +210,7 @@ class LimitOp(QueryOp) :
         return list(islice(data, self.limit))
 
 class JoinOp(QueryOp) :
-    def __init__(self, right : Any, on : str | Tuple[str, str], how : str = "inner" ) :
+    def __init__(self, right : Any, on : str | Tuple[str, str], how : str = "inner", rename : bool | tuple[str, str] = False) :
         super().__init__(OpType.join)
         from gertrude.query import Query
 
@@ -222,6 +223,14 @@ class JoinOp(QueryOp) :
         self.right_ = right
         self.how_ = how
         self.on_ = on
+        if isinstance(rename, tuple) :
+            self.rename_ = True
+            self.left_rename_, self.right_rename_ = rename
+        elif rename :
+            self.rename_ = True
+            self.left_rename_, self.right_rename_ = ('_left', '_right')
+        else :
+            self.rename_ = False
 
     def __str__(self) :
         return f"Join({self.right_})"
@@ -235,42 +244,58 @@ class JoinOp(QueryOp) :
         else :
             raise ValueError(f"'on' must be a string or tuple, got {type(self.on_)}")
 
+        left_row = next(iter(data))
+        right_row = next(iter(self.right_.run(values=True)))
+
+        empty_row : dict[str, Value] = { k : valueNull() for k in right_row.keys() }
+        logger.debug(f"empty_row = {empty_row}")
+
+        if self.rename_ :
+            left_keys = set(left_row.keys())
+            right_keys = set(right_row.keys())
+            logger.debug(f"left_keys = {left_keys}")
+            logger.debug(f"right_keys = {right_keys}")
+            same_keys = left_keys & right_keys
+
+            left_key_map = { k : k+self.left_rename_ for k in same_keys }
+            right_key_map = { k : k+self.right_rename_ for k in same_keys }
+
+            logger.debug(f"left_key_map = {left_key_map}")
+            logger.debug(f"right_key_map = {right_key_map}")
+
+        else :
+            left_key_map = {  }
+            right_key_map = { }
+
+
         hash_map : dict[Value, list[dict[str, Value]]] = {}
-        empty_row : dict[str, Value] | None = None
-        for rrow in self.right_.run(values=True) :
-            if empty_row is None :
-                empty_row = { k : valueNull() for k in rrow.keys() }
-                logger.debug(f"empty_row = {empty_row}")
+        for lrow in self.right_.run(values=True) :
 
-            logger.debug(f"-- right row = {rrow}")
+            logger.debug(f"-- right row = {lrow}")
 
-            key = rrow[right_col]
+            key = lrow[right_col]
             if key in hash_map :
-                hash_map[key].append(rrow)
+                hash_map[key].append(lrow)
             else :
-                hash_map[key] = [rrow]
+                hash_map[key] = [lrow]
 
         logger.debug(f"hash_map count = {len(hash_map)}")
         logger.debug(f"hash_map = {hash_map}")
 
         retval : list[dict[str, Value]] = []
-        # TODO : matching column names from right will overwrite
-        # the ones from the left. This will make it impossible to
-        # do self-joins.
-        # rename any matching columns as _left, _right suffixes like
-        # pandas does.
-        for rrow in data :
-            if empty_row is None :
-                raise ValueError("left table has no rows")
-            key = rrow[left_col]
+        for lrow in itertools.chain([left_row], data) :
+            key = lrow[left_col]
             if self.how_ == "inner" :
                 if key in hash_map :
-                    retval.extend([{**rrow, **x} for x in hash_map[key]])
+                    retval.extend([{**{left_key_map.get(k,k) : v for k,v in lrow.items()},
+                                    **{right_key_map.get(k,k) : v for k,v in x.items()}} for x in hash_map[key]])
             elif self.how_ == "left_outer" :
                 if key in hash_map :
-                    retval.extend([{**rrow, **x} for x in hash_map[key]])
+                    retval.extend([{**{left_key_map.get(k,k) : v for k,v in lrow.items()},
+                                    **{right_key_map.get(k,k) : v for k,v in x.items()}} for x in hash_map[key]])
                 else :
-                    retval.append({**rrow, **empty_row})
+                    retval.append({**{left_key_map.get(k,k) : v for k,v in lrow.items()},
+                                   **{right_key_map.get(k,k) : v for k,v in empty_row.items()}})
             else :
                 raise ValueError(f"how must be one of inner or left_outer, got {self.how_}")
         return retval
