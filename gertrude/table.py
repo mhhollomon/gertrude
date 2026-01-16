@@ -45,6 +45,8 @@ class Table :
         self.name = table_name
         self.db_ctx = db_ctx
         self.open = True
+        self.stats : dict = {"count" : 0}
+        self.stat_update_count = 0
 
         self.spec : tuple[FieldSpec, ...] = self._reform_spec()
         self.spec_map = {s.name : s for s in self.spec}
@@ -106,12 +108,18 @@ class Table :
 
         self.db_path.mkdir(exist_ok=True)
         (self.db_path / "config").write_text(json.dumps(config))
+
         (self.db_path / "data").mkdir()
         (self.db_path / "index").mkdir()
         self._create_auto_indexes()
 
+    def _write_stats (self) :
+        (self.db_path / "stats").write_text(json.dumps(self.stats))
+
     def _load_def(self) :
         config = json.loads((self.db_path / "config").read_text())
+        self.stats = json.loads((self.db_path / "stats").read_text())
+
         self.id = config["id"]
         self.spec = config["spec"]
         index_path = self.db_path / "index"
@@ -172,6 +180,13 @@ class Table :
 
     def _unwrap(self, data : dict[str, Value] ) -> dict[str, Any] :
         return {x : y.value for x,y in data.items()}
+
+    def _update_count(self, increment : int =1) :
+        self.stats["count"] += increment
+        self.stat_update_count += 1
+        if self.stat_update_count > 10 :
+            self._write_stats()
+            self.stat_update_count = 0
 
     #################################################################
     # Public API
@@ -241,7 +256,7 @@ class Table :
             raise ValueError("Database is in read-only mode.")
 
         if not self.open :
-            raise ValueError(f"Table {self.name} is closed.")
+            raise ValueError(f"Table {self.name} is deleted.")
 
         if len(args) == 1 :
             record = args[0]
@@ -263,6 +278,8 @@ class Table :
 
         heap_id = heap.write(self.db_path / "data", self._row_to_storage(record_object))
 
+        self._update_count()
+
         for index in self.indexes.values() :
             index.insert(record_object, int(heap_id))
 
@@ -279,7 +296,7 @@ class Table :
         if name not in self.indexes :
             raise ValueError(f"Index {name} does not exist for table {self.name}")
         if not self.open :
-            raise ValueError(f"Table {self.name} is closed.")
+            raise ValueError(f"Table {self.name} is deleted.")
 
         for block in self.indexes[name].scan(key, op) :
             row = self._row_from_storage(heap.read(self.db_path / "data", block))
@@ -287,9 +304,6 @@ class Table :
                 yield self._unwrap(row)
             else :
                 yield row
-
-
-
 
     def print_index(self, name : str) :
         self.indexes[name].print_tree()
@@ -302,7 +316,7 @@ class Table :
             raise ValueError("Database is in read-only mode.")
 
         if not self.open :
-            raise ValueError(f"Table {self.name} is closed.")
+            raise ValueError(f"Table {self.name} is deleted.")
 
         victim = self._row_from_dict(row)
 
@@ -310,6 +324,7 @@ class Table :
             if record == victim :
                 logger.debug(f"Deleting record{record}")
                 heap.delete(self.db_path / "data", block_id)
+                self._update_count(-1)
                 for index in self.indexes.values() :
                     index.delete(row)
                 return True
@@ -321,7 +336,7 @@ class Table :
             raise ValueError("Database is in read-only mode.")
 
         if not self.open :
-            raise ValueError(f"Table {self.name} is closed.")
+            raise ValueError(f"Table {self.name} is deleted.")
 
         from .query import Query
 
@@ -336,3 +351,8 @@ class Table :
 
     def index(self, index_name : str) -> Index :
         return self.indexes[index_name]
+
+    def count(self) -> int :
+        if not self.open :
+            raise ValueError(f"Table {self.name} is deleted.")
+        return self.stats["count"]

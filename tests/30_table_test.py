@@ -12,9 +12,13 @@ def test_delete_row_no_index(caplog, tmp_path) :
     table.insert({"id" : 2, "name" : "alice"})
     table.insert({"id" : 3, "name" : "charlie"})
 
+    assert table.count() == 3
+
     caplog.set_level(logging.DEBUG, logger="gertrude.table")
 
     assert table.delete({"id" : 2, "name" : "alice"})
+
+    assert table.count() == 2
 
     data = sorted([x for x in table.scan()], key=lambda x : x["id"])
     assert data == [{"id" : 1, "name" : "bob"}, {"id" : 3, "name" : "charlie"}]
