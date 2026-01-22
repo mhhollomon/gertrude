@@ -6,6 +6,7 @@ import operator as pyops
 
 import logging
 logger = logging.getLogger(__name__)
+from .lib.types import value as value
 
 
 @v_args(inline=True)
@@ -42,7 +43,9 @@ class ExprTransformer(Transformer) :
         return node.Operation('math', pyops.mod, x, y)
 
     def bnot(self, x) :
-        return node.MonoOperation(pyops.not_, x)
+        return node.MonoOperation(value.v_not, x)
+    def bneg(self, x) :
+        return node.MonoOperation(value.v_negate, x)
 
     def relop(self, left, op, right) :
         return node.Operation('rel', op, left, right)
@@ -53,8 +56,17 @@ class ExprTransformer(Transformer) :
     def nvl(self, *args) :
         return node.NVLOp(*args)
 
+    def in_base(self, notkw, test_value, *args) :
+        op = node.INStmt(test_value, args)
+        if notkw :
+            op = node.MonoOperation(value.v_not, op)
+        return op
+
     def instmt(self, test_value, *args) :
-        return node.INStmt(test_value, args)
+        return self.in_base(False, test_value, *args)
+
+    def notinstmt(self, test_value, *args) :
+        return self.in_base(True, test_value, *args)
 
     def RELOPERATOR(self, x) :
         if x.value == "=" :
@@ -74,9 +86,9 @@ class ExprTransformer(Transformer) :
 
     def LOGOPERATOR(self, x) :
         if x.value == "and" :
-            return pyops.and_
+            return value.v_and
         elif x.value == "or" :
-            return pyops.or_
+            return value.v_or
         else :
             raise ValueError(f"Unknown logical operator {x.value}")
 
@@ -92,5 +104,13 @@ class ExprTransformer(Transformer) :
             legs = cast(list[node.CaseLeg], branches)
         return node.CaseStmt(legs, default)
 
+    def between_base(self, notkw, x, low, high) :
+        op = node.Operation('rel', value.v_and,
+                            node.Operation('rel', pyops.ge, x, low), node.Operation('rel', pyops.le, x, high))
+        if notkw :
+            op = node.MonoOperation(value.v_not, op)
+        return op
+    def notbetween(self, x, low, high) :
+        return self.between_base(True, x, low, high)
     def between(self, x, low, high) :
-        return node.Operation('rel', pyops.and_, node.Operation('rel', pyops.ge, x, low), node.Operation('rel', pyops.le, x, high))
+        return self.between_base(False, x, low, high)

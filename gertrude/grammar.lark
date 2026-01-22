@@ -11,7 +11,9 @@ caseleg : "when"i logop "then"i logop
 ?relop : sum
        | sum RELOPERATOR relop
        | sum "between"i sum "and"i sum -> between
+       | sum _NOT "between"i sum "and"i sum -> notbetween
        | sum _IN "(" expr ("," expr)* ")" -> instmt
+       | sum _NOT _IN "(" expr ("," expr)* ")" -> notinstmt
 
 ?sum : product
     | sum "+" product -> add
@@ -24,6 +26,7 @@ caseleg : "when"i logop "then"i logop
 
 
 ?boolnot : _NOT atom -> bnot
+         | "-" atom -> negate
          | atom
 
 ?atom : SQ_STR -> lit_str

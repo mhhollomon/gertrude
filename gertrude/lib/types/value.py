@@ -152,42 +152,42 @@ class Value:
     # COMPARISON
     #
     def __lt__(self, other) :
-        retval = False
+        retval = valueFalse()
         if isinstance(other, Value) :
             if self.type != other.type :
                 raise ValueError("Cannot compare Values of different types")
-            retval = self.raw < other.raw
+            retval = valueBool(self.raw < other.raw)
         elif isinstance(other, bytes) :
-            retval = self.raw < other
+            retval = valueBool(self.raw < other)
         return retval
 
 
     def __eq__(self, other) :
         if isinstance(other, Value) :
-            return self.raw == other.raw
+            return valueBool(self.raw == other.raw)
         elif isinstance(other, bytes) :
-            return self.raw == other
+            return valueBool(self.raw == other)
         else :
-            return False
+            return valueFalse()
 
     def __gt__(self, other) :
-        retval = False
+        retval = valueFalse()
         if isinstance(other, Value) :
             if self.type != other.type :
                 raise ValueError("Cannot compare Values of different types")
-            retval = self.raw > other.raw
+            retval = valueBool(self.raw > other.raw)
         elif isinstance(other, bytes) :
-            retval = self.raw > other
+            retval = valueBool(self.raw > other)
         return retval
 
     def __le__(self, other) :
-        return self < other or self == other
+        return v_not(self > other)
 
     def __ge__(self, other) :
-        return self > other or self == other
+        return v_not(self < other)
 
     def __ne__(self, other) :
-        return not self == other
+        return v_not(self == other)
 
     #
     # MATH
@@ -221,11 +221,6 @@ class Value:
             return Value(self.type, None)
         mod = self.value % other.value
         return Value(type(mod), mod)
-
-    def __not__(self) :
-        if self.is_null :
-            return Value(self.type, None)
-        return Value(self.type, not self.value)
 
     ##############################################################
     # PUBLIC API
@@ -291,3 +286,35 @@ def valueFalse() -> Value :
 
 def valueNull() -> Value :
     return Value(VALUE_INT_TYPE, None)
+
+def valueBool(value : bool) -> Value :
+    return Value(VALUE_BOOL_TYPE, value)
+
+def valueInt(value : int) -> Value :
+    return Value(VALUE_INT_TYPE, value)
+
+##################################################
+## Operators
+##################################################
+
+def v_and(v1 : Value, v2 : Value) -> Value :
+    if v1.is_null or v2.is_null :
+        return valueNull()
+    return valueBool(v1.as_bool() and v2.as_bool())
+
+def v_or(v1 : Value, v2 : Value) -> Value :
+    if v1.is_null or v2.is_null :
+        return valueNull()
+    return valueBool(v1.as_bool() or v2.as_bool())
+
+def v_not(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    return valueBool(not v.as_bool())
+
+def v_negate(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    if v.type != VALUE_INT_TYPE :
+        raise ValueError("Value must be of type int for unary negation")
+    return valueInt(-v.value)

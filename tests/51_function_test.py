@@ -8,6 +8,7 @@ def setup_logging(request, caplog):
     caplog.set_level(logging.DEBUG, logger="gertrude.runner")
     caplog.set_level(logging.DEBUG, logger="gertrude.expression")
     caplog.set_level(logging.DEBUG, logger="gertrude.transformer")
+    caplog.set_level(logging.DEBUG, logger="gertrude.lib.expr_nodes")
     request.caplog = caplog
     yield
 
@@ -27,3 +28,10 @@ def test_in() :
 
     expr = expr_parse("1 in (2,3,4)")
     assert expr.calc({}).value == False
+
+def test_not_in():
+    expr = expr_parse("1 not in (1,2,3)")
+    assert expr.calc({}).value == False
+
+    expr = expr_parse("1 not in (2,3,4)")
+    assert expr.calc({}).value == True

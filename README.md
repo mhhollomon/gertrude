@@ -566,7 +566,6 @@ Default fanout is 80.
 
 ## TODO
 - joins
-    - duplicate column names
     - full outer joins
 - planner
     - allow reordering of filters when safe to do so.
@@ -577,8 +576,6 @@ Default fanout is 80.
 - Check typing on insert values.
 - expressions
     - substr()
-    - unary minus - e.g. `-my_column`
-    - NOT BETWEEN
     - NOT IN
     - CURRENT_TIMESTAMP (returns string)
 - allow expressions for column defaults.

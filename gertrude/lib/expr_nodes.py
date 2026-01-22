@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from .types.value import Value, valueTrue, valueFalse, valueNull
 from typing import Any, Callable, List
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class ExprNode(ABC):
     @abstractmethod
@@ -31,10 +34,19 @@ class Operation(ExprNode) :
         return self.op.__name__
 
     def calc(self, row : dict[str, Value]) -> Value :
-        return self.op(self.left.calc(row), self.right.calc(row))
+        left = self.left.calc(row)
+        if left.is_null :
+            return valueNull()
+        right = self.right.calc(row)
+        if right.is_null :
+            return valueNull()
+        return self.op(left, right)
 
     def to_python(self) :
         return f"({self.left.to_python()} {self.op.__name__} {self.right.to_python()})"
+
+    def __repr__(self) :
+        return f"Operation({self.category}, <{self.op.__name__}>, left={self.left}, right={self.right})"
 
 @dataclass
 class ColumnName(ExprNode) :
@@ -68,13 +80,22 @@ class Literal(ExprNode) :
     def name(self) :
         return self.value.type_name
 
+    def __repr__(self) :
+        return f"Literal({self.value})"
+
 @dataclass
 class MonoOperation(ExprNode) :
     op : Any
     arg : ExprNode
 
     def calc(self, row : dict[str, Value]) -> Value :
-        return self.op(self.arg.calc(row))
+        value = self.arg.calc(row)
+        logger.debug(f"MonoOperation {self.op.__name__} arg = {value}")
+        retval = self.op(self.arg.calc(row))
+        if isinstance(retval, bool) :
+            return Value(bool, retval)
+        else :
+            return retval
 
     def to_python(self) :
         return f"{self.op.__name__}({self.arg.to_python()})"
@@ -82,6 +103,9 @@ class MonoOperation(ExprNode) :
     @property
     def name(self) :
         return self.op.__name__
+
+    def __repr__(self) :
+        return f"MonoOperation({self.op.__name__}, {self.arg})"
 
 class NVLOp(ExprNode) :
     args : List[ExprNode]
@@ -110,17 +134,21 @@ class INStmt(ExprNode) :
         self.right = right
 
     def calc(self, row : dict[str, Value]) -> Value :
+        test_value : Value = self.left.calc(row)
         for x in self.right :
-            if x.calc(row) == self.left.calc(row) :
+            if x.calc(row) == test_value :
                 return valueTrue()
         return valueFalse()
 
     def to_python(self) :
-        return f"{self.left.to_python()} in soemthing"
+        return f"{self.left.to_python()} in something"
 
     @property
     def name(self) :
         return "in"
+
+    def __repr__(self) :
+        return f"INStmt({self.left}, [{self.right}])"
 
 @dataclass
 class CaseLeg(ExprNode) :
@@ -170,7 +198,7 @@ class Between(ExprNode) :
 
     def calc(self, row : dict[str, Value]) -> Value :
         value = self.arg.calc(row)
-        return value >= self.lower.calc(row) and value <= self.upper.calc(row)
+        return Value(bool, (value >= self.lower.calc(row) and value <= self.upper.calc(row)))
 
     def to_python(self) :
         return f"v = {self.arg.to_python()}; v >={self.lower.to_python()} and v <={self.upper.to_python()}"
