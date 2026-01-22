@@ -293,6 +293,9 @@ def valueBool(value : bool) -> Value :
 def valueInt(value : int) -> Value :
     return Value(VALUE_INT_TYPE, value)
 
+def valueStr(value : str) -> Value :
+    return Value(VALUE_STR_TYPE, value)
+
 ##################################################
 ## Operators
 ##################################################
@@ -316,5 +319,39 @@ def v_negate(v : Value) -> Value :
     if v.is_null :
         return valueNull()
     if v.type != VALUE_INT_TYPE :
-        raise ValueError("Value must be of type int for unary negation")
+        raise TypeError("Value must be of type int for unary negation")
     return valueInt(-v.value)
+
+def v_isnull(v : Value) -> Value :
+    return valueBool(v.is_null)
+
+def v_strlen(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    if v.type != VALUE_STR_TYPE :
+        raise TypeError("Value must be of type str for string length")
+    return valueInt(len(v.as_str()))
+
+def v_upper(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    if v.type != VALUE_STR_TYPE :
+        raise TypeError("Value must be of type str for upper")
+    return valueStr(v.as_str().upper())
+
+def v_lower(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    if v.type != VALUE_STR_TYPE :
+        raise TypeError("Value must be of type str for lower")
+    return valueStr(v.as_str().lower())
+
+def v_tostr(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    return valueStr(v.as_str())
+
+def v_toint(v : Value) -> Value :
+    if v.is_null :
+        return valueNull()
+    return valueInt(v.as_int())

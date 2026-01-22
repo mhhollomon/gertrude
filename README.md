@@ -467,6 +467,43 @@ data = q.run()
 - `nvl(value, ...)` first non-null value is returned.
 - IN statement
 
+#### STRING HANDLING
+##### substr(value, start, [length])
+The substring of `value` starting at `start` (First character is position 1) and
+running for `length` characters. If `length` is not given, runs until the end of the string.
+
+`value` must be a string or NULL and `start` and `length` must be integers or NULL.
+Passing NULL for `value` or `start` will result in NULL as the result.
+Passing NULL for `length` acts the same as not passing it at all.
+
+##### strlen(value)
+The length of `value` in characters. `value` must be a string or NULL.
+
+##### upper(value) and lower(value)
+Case folding. `value` must be a string or NULL.
+
+##### str(value)
+Change `value` into a string representation.
+
+##### examples
+```
+substr('Hello World', 7) = 'World'
+substr('Hello World' ,7,1) = 'W'
+substr(NULL, 1, 1) is NULL
+substr('Foo', NULL, 1) is NULL
+substr('Foo', 1, NULL) = 'Foo'
+
+strlen('Hello World') = 11
+
+upper('Hello World') = 'HELLO WORLD'
+lower('Hello World') = 'hello world'
+
+str(1) = '1'
+str(False) = 'False'
+str(NULL) is NULL
+```
+
+
 # Data layout
 A gertrude database is a directory.
 
@@ -575,7 +612,6 @@ Default fanout is 80.
 - Honor Fan-out on internal nodes during post insert index creation.
 - Check typing on insert values.
 - expressions
-    - substr()
     - CURRENT_TIMESTAMP (returns string)
 - allow expressions for column defaults.
 

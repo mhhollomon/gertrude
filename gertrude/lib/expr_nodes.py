@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from .types.value import Value, valueTrue, valueFalse, valueNull
+from .types.value import Value, valueTrue, valueFalse, valueNull, valueStr
 from typing import Any, Callable, List
 
 import logging
@@ -126,6 +126,45 @@ class NVLOp(ExprNode) :
     @property
     def name(self) :
         return "nvl"
+
+class Substring(ExprNode) :
+
+    def __init__(self, arg : ExprNode, start : ExprNode, length : ExprNode | None = None) :
+        self.arg = arg
+        self.start = start
+        self.length = length
+
+    def calc(self, row : dict[str, Value]) -> Value :
+        arg = self.arg.calc(row)
+        if arg.is_null :
+            return valueNull()
+        if arg.type_name != "str" :
+            raise TypeError(f"Substring arg must be string, not {arg.type_name}")
+
+        start = self.start.calc(row)
+        if start.is_null :
+            return valueNull()
+
+        start = start.value
+
+        if self.length is None :
+            return valueStr(arg.value[start-1:])
+        length = self.length.calc(row)
+        if length.is_null :
+            return valueStr(arg.value[start-1:])
+
+        length = length.value
+        return valueStr(arg.value[start-1:length+start-1])
+
+    def to_python(self) :
+        return f"substring({self.arg.to_python()}, {self.start.to_python()})"
+
+    @property
+    def name(self) :
+        return "substring"
+
+    def __repr__(self) :
+        return f"Substring({self.arg}, {self.start}, {self.length})"
 
 class INStmt(ExprNode) :
 

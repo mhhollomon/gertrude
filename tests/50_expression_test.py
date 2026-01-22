@@ -75,3 +75,20 @@ def test_negate() :
     expr = expr_parse("1 - - 2")
     assert isinstance(expr, ExprNode)
     assert expr.calc({}).value == 3
+
+    expr = expr_parse("-1.32 - -1")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == pytest.approx(-0.32)
+
+def test_is_null() :
+    expr = expr_parse("Null is null")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == True
+
+    expr = expr_parse("Null is not null")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == False
+
+    expr = expr_parse("1 is not null")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == True

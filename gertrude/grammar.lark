@@ -26,6 +26,8 @@ caseleg : "when"i logop "then"i logop
 
 
 ?boolnot : _NOT negate -> bnot
+         | negate "is" _NULL -> isnull
+         | negate "is" _NOT _NULL -> isnotnull
          | negate
 
 ?negate : "-" negate -> negative
@@ -33,7 +35,14 @@ caseleg : "when"i logop "then"i logop
 
 ?atom : SQ_STR -> lit_str
       | SIGNED_INT -> lit_int
+      | SIGNED_FLOAT -> lit_float
       | _NVL expr ("," expr)* ")"  -> nvl
+      | _SUBSTR expr "," expr ("," expr)? ")" -> substring
+      | _STRLEN expr ")" -> strlen
+      | _UPPER expr ")" -> upper
+      | _LOWER expr ")" -> lower
+      | _TO_STR expr ")" -> tostr
+      | _TO_INT expr ")" -> toint
       | col_name
       | _TRUE -> true
       | _FALSE -> false
@@ -45,8 +54,16 @@ _TRUE.10 : "true"i
 _FALSE.10 : "false"i
 _NULL.10  : "null"i
 _NOT.10 : "not"i
-_NVL.10 : "nvl("i
 _IN.10 : "in"i
+
+// functions
+_NVL.10 : "nvl("i
+_SUBSTR.10 : "substr("i
+_STRLEN.10 : "strlen("i
+_UPPER.10 : "upper("i
+_LOWER.10 : "lower("i
+_TO_STR.10 : "str("i
+_TO_INT.10 : "int("i
 
 RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
 LOGOPERATOR : "and" | "or"
@@ -58,6 +75,7 @@ col_name : CNAME | DQ_STR
 %import common.ESCAPED_STRING -> DQ_STR
 %import common._STRING_ESC_INNER
 %import common.SIGNED_INT
+%import common.SIGNED_FLOAT
 
 SQ_STR : "'" _STRING_ESC_INNER "'"
 

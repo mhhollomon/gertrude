@@ -24,6 +24,9 @@ class ExprTransformer(Transformer) :
         return node.Literal(x.value[1:-1], 'str')
     def lit_int(self, x) :
         return node.Literal(int(x.value), 'int')
+    def lit_float(self, x) :
+        return node.Literal(float(x.value), 'float')
+
     def true(self) :
         return node.Literal(True, 'bool')
     def false(self) :
@@ -47,6 +50,12 @@ class ExprTransformer(Transformer) :
     def negative(self, x) :
         return node.MonoOperation(value.v_negate, x)
 
+    def isnull(self, x) :
+        return node.MonoOperation(value.v_isnull, x)
+
+    def isnotnull(self, x) :
+        return node.MonoOperation(value.v_not, node.MonoOperation(value.v_isnull, x))
+
     def relop(self, left, op, right) :
         return node.Operation('rel', op, left, right)
 
@@ -55,6 +64,24 @@ class ExprTransformer(Transformer) :
 
     def nvl(self, *args) :
         return node.NVLOp(*args)
+
+    def substring(self, arg, start, length = None) :
+        return node.Substring(arg, start, length)
+
+    def strlen(self, x) :
+        return node.MonoOperation(value.v_strlen, x)
+
+    def upper(self, x) :
+        return node.MonoOperation(value.v_upper, x)
+
+    def lower(self, x) :
+        return node.MonoOperation(value.v_lower, x)
+
+    def tostr(self, x) :
+        return node.MonoOperation(value.v_tostr, x)
+
+    def toint(self, x) :
+        return node.MonoOperation(value.v_toint, x)
 
     def in_base(self, notkw, test_value, *args) :
         op = node.INStmt(test_value, args)

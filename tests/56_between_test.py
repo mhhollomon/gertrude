@@ -49,6 +49,11 @@ def test_between(caplog) :
     assert ast.calc({"value" : v(7)}).value == True
     assert ast.calc({"value" : v(8)}).value == False
 
+    expr = "Null between 2 and 3"
+    ast = expr_parse(expr)
+
+    assert ast.calc({}).value == None
+
 
 def test_not_between(caplog) :
     expr = "value not between 2 and 3"
