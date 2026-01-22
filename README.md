@@ -454,20 +454,22 @@ data = q.run()
 - column name in double quotes. (This can be used to select
   columns that were created by select or add_column that don't
   match the criteria for a column name).
-- "+ - * / %" normal operator precedence applies. '+' can be used
-  with string to concatenate.
+- "+ - * / %" normal operator precedence applies.
 - Any of the above in parentheses.
 - Comparision operators "=", "<", ">", "<=", "=>", "!="
 - logical operators "and", "or"
   The operators shortcut.
 - "not" operator - Note that this binds rather tightly, so most expressions will
   need to use parentheses.
-- between
+- (not) between
 - case/when/then/else - you may have multiple when/then pairs.
 - `nvl(value, ...)` first non-null value is returned.
-- IN statement
+- (not) IN statement
 
 #### STRING HANDLING
+##### concatenate
+Use `+` to concatenate strings.
+
 ##### substr(value, start, [length])
 The substring of `value` starting at `start` (First character is position 1) and
 running for `length` characters. If `length` is not given, runs until the end of the string.
@@ -487,6 +489,8 @@ Change `value` into a string representation.
 
 ##### examples
 ```
+'Hello' + ' ' + 'World' = 'Hello World'
+
 substr('Hello World', 7) = 'World'
 substr('Hello World' ,7,1) = 'W'
 substr(NULL, 1, 1) is NULL
