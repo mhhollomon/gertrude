@@ -576,7 +576,6 @@ Default fanout is 80.
 - Check typing on insert values.
 - expressions
     - substr()
-    - NOT IN
     - CURRENT_TIMESTAMP (returns string)
 - allow expressions for column defaults.
 

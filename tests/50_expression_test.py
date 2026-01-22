@@ -2,12 +2,15 @@ from gertrude.expression import expr_parse
 from gertrude.lib.expr_nodes import ExprNode, CaseStmt
 import pytest
 import logging
+logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_logging(request, caplog):
     caplog.set_level(logging.DEBUG, logger="gertrude.runner")
     caplog.set_level(logging.DEBUG, logger="gertrude.expression")
     caplog.set_level(logging.DEBUG, logger="gertrude.transformer")
+    caplog.set_level(logging.DEBUG, logger="gertrude.lib.expr_nodes")
+    caplog.set_level(logging.DEBUG, logger=logger.name)
     request.caplog = caplog
     yield
 
@@ -42,3 +45,33 @@ def test_mixed_types() :
     expr = expr_parse("Null + 'String'")
     assert isinstance(expr, ExprNode)
     assert expr.calc({}).value == None
+
+def test_negate() :
+    expr = expr_parse("-1")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == -1
+
+    expr = expr_parse("-1 + 2")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == 1
+
+    expr = expr_parse("-1 - 2")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == -3
+
+    logger.debug("test_negate '--1'")
+    expr = expr_parse("- -1")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == 1
+
+    expr = expr_parse("---1")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == -1
+
+    expr = expr_parse("- -1 + 2")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == 3
+
+    expr = expr_parse("1 - - 2")
+    assert isinstance(expr, ExprNode)
+    assert expr.calc({}).value == 3

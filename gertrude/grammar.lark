@@ -25,9 +25,11 @@ caseleg : "when"i logop "then"i logop
          | product "%" boolnot -> mod
 
 
-?boolnot : _NOT atom -> bnot
-         | "-" atom -> negate
-         | atom
+?boolnot : _NOT negate -> bnot
+         | negate
+
+?negate : "-" negate -> negative
+        | atom
 
 ?atom : SQ_STR -> lit_str
       | SIGNED_INT -> lit_int

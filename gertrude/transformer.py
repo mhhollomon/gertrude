@@ -44,7 +44,7 @@ class ExprTransformer(Transformer) :
 
     def bnot(self, x) :
         return node.MonoOperation(value.v_not, x)
-    def bneg(self, x) :
+    def negative(self, x) :
         return node.MonoOperation(value.v_negate, x)
 
     def relop(self, left, op, right) :
