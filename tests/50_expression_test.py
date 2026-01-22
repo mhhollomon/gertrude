@@ -27,6 +27,16 @@ def test_simple_math() :
     assert isinstance(expr, ExprNode)
     assert expr.calc({}).value == 11
 
+def test_parens() :
+    expr = expr_parse("(1 + 2) * 3")
+    assert expr.calc({}).value == 9
+
+    expr = expr_parse("(1 + (2 * 3))")
+    assert expr.calc({}).value == 7
+
+    expr = expr_parse("True and (not False)")
+    assert expr.calc({}).value == True
+
 def test_null_math() :
     expr = expr_parse("1 + Null")
     assert isinstance(expr, ExprNode)

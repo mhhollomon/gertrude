@@ -111,13 +111,11 @@ class ExprTransformer(Transformer) :
         else :
             raise ValueError(f"Unknown relational operator {x.value}")
 
-    def LOGOPERATOR(self, x) :
-        if x.value == "and" :
-            return value.v_and
-        elif x.value == "or" :
-            return value.v_or
-        else :
-            raise ValueError(f"Unknown logical operator {x.value}")
+    def and_clause(self, left, right) :
+        return node.Operation('log', value.v_and, left, right)
+
+    def or_clause(self, left, right) :
+        return node.Operation('log', value.v_or, left, right)
 
     def caseleg(self, when, then) :
         return node.CaseLeg(when, then)

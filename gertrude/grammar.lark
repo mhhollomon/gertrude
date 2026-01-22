@@ -6,7 +6,10 @@
 caseleg : "when"i logop "then"i logop
 
 ?logop : relop
-       | relop LOGOPERATOR logop
+       | relop "and"i logop -> and_clause
+       | relop "or"i logop -> or_clause
+
+
 
 ?relop : sum
        | sum RELOPERATOR relop
@@ -66,7 +69,6 @@ _TO_STR.10 : "str("i
 _TO_INT.10 : "int("i
 
 RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
-LOGOPERATOR : "and" | "or"
 
 // CNAME is pretty broad, so needs to be low
 col_name : CNAME | DQ_STR

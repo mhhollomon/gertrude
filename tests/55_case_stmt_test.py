@@ -32,3 +32,8 @@ def test_logic() :
     assert ast.calc({ "year" : Value(int, 2000) }).value == True
     assert ast.calc({ "year" : Value(int, 1900) }).value == False
     assert ast.calc({ "year" : Value(int, 2001) }).value == False
+
+    ast = expr_parse("(year % 400 = 0) or ((year % 100 != 0) and (year % 4 = 0))")
+    assert ast.calc({ "year" : Value(int, 2000) }).value == True
+    assert ast.calc({ "year" : Value(int, 1900) }).value == False
+    assert ast.calc({ "year" : Value(int, 2001) }).value == False
