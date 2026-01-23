@@ -465,6 +465,18 @@ data = q.run()
 - case/when/then/else - you may have multiple when/then pairs.
 - `nvl(value, ...)` first non-null value is returned.
 - (not) IN statement
+- IS (NOT) NULL
+
+#### DATA VARS
+Special variables that let you get certain system information
+
+##### CURRENT_TIMESTAMP
+Local date/time of the server in ISO format. This is a string,
+not a date type.
+
+##### CURRENT_UTC_TIMESTAMP
+current date/time in UTC in ISO format. Note, the timezone offset are not a part
+of the returned string.
 
 #### STRING HANDLING
 ##### concatenate
@@ -616,9 +628,9 @@ Default fanout is 80.
 - Honor Fan-out on internal nodes during post insert index creation.
 - Check typing on insert values.
 - expressions
-    - CURRENT_TIMESTAMP (returns string)
+    - A way to get the version of gertrude running the expression.
 - allow expressions for column defaults.
-
+- ?? generate python code for the query ??
 ## Technologies
 - [Flit](https://flit.pypa.io/en/stable/) - Python packaging/building.
 - [Nanoid](https://github.com/puyuan/py-nanoid) is used to generate row heap IDs.
