@@ -96,7 +96,7 @@ class ExprTransformer(Transformer) :
         return self.in_base(True, test_value, *args)
 
     def RELOPERATOR(self, x) :
-        if x.value == "=" :
+        if x.value == "="  or x.value == "==" :
             return pyops.eq
         elif x.value == "<" :
             return pyops.lt
@@ -110,6 +110,9 @@ class ExprTransformer(Transformer) :
             return pyops.ne
         else :
             raise ValueError(f"Unknown relational operator {x.value}")
+
+    def datavar(self, varname) :
+        return node.DataVar(varname.value.lower())
 
     def and_clause(self, left, right) :
         return node.Operation('log', value.v_and, left, right)

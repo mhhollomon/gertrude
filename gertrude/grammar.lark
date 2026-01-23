@@ -46,11 +46,15 @@ caseleg : "when"i logop "then"i logop
       | _LOWER expr ")" -> lower
       | _TO_STR expr ")" -> tostr
       | _TO_INT expr ")" -> toint
+      | datavar
       | col_name
       | _TRUE -> true
       | _FALSE -> false
       | _NULL -> null
       | "(" expr ")"
+
+datavar : CURRENT_TIMESTAMP
+        | CURRENT_UTC_TIMESTAMP
 
 // Need priority to compete with CNAME
 _TRUE.10 : "true"i
@@ -68,7 +72,11 @@ _LOWER.10 : "lower("i
 _TO_STR.10 : "str("i
 _TO_INT.10 : "int("i
 
-RELOPERATOR : "="|"<"|">"|"<="|">="|"!="
+// Data variables
+CURRENT_TIMESTAMP.10 : "current_timestamp"i
+CURRENT_UTC_TIMESTAMP.10 : "current_utc_timestamp"i
+
+RELOPERATOR : "=="|"="|"<"|">"|"<="|">="|"!="
 
 // CNAME is pretty broad, so needs to be low
 col_name : CNAME | DQ_STR

@@ -241,3 +241,28 @@ class Between(ExprNode) :
 
     def to_python(self) :
         return f"v = {self.arg.to_python()}; v >={self.lower.to_python()} and v <={self.upper.to_python()}"
+
+class DataVar(ExprNode) :
+
+    def __init__(self, name : str) :
+        self.name_ = name
+
+    @property
+    def name(self) :
+        return self.name_
+
+    def calc(self, row : dict[str, Value]) -> Value :
+        if self.name_ == "current_timestamp" :
+            import datetime
+            return Value(str, datetime.datetime.now().isoformat())
+        elif self.name_ == "current_utc_timestamp" :
+            import datetime
+            return Value(str, datetime.datetime.now(datetime.timezone.utc).isoformat()[:-10])
+        else :
+            raise KeyError(f"DataVar {self.name_} not found")
+
+    def to_python(self) :
+        return f"row['{self.name_}']"
+
+    def __repr__(self) :
+        return f"DataVar({self.name_})"
