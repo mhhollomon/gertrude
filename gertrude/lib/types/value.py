@@ -73,6 +73,10 @@ class Value:
     __slots__ = ('raw_', 'value_')
 
     def __init__(self, value_type : int | str | Type, value : Any):
+
+        if isinstance(value, Value) :
+            raise ValueError(f"Cannot create Value object from Value object {repr(value)}")
+
         if isinstance(value_type, (str, Type)) :
             type = TYPE_MAP.get(value_type, -1)
         else :
@@ -93,6 +97,9 @@ class Value:
         return bool(self.raw_[0] & _ENCODED_MASK)
 
     def _encode_value(self, type : int, value : Any) -> bytes :
+        if (isinstance(value, Value)) :
+            raise ValueError(f"Cannot encode Value objects {repr(value)}")
+
         if value is None :
             return b""
         if type == VALUE_INT_TYPE :

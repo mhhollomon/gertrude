@@ -10,6 +10,9 @@ from pathlib import Path
 import shutil
 from gertrude import  Database, cspec
 
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
+
 db_path = Path("./output")
 if db_path.exists() :
     shutil.rmtree(db_path)
@@ -21,11 +24,14 @@ table = db.add_table("test", [
     cspec("age", 'int'),
 ])
 
+print(table.get_spec())
+
 table.insert({"name" : "bob", "age" : 12})
 table.insert({"name" : "alice", "age" : 22})
 
 OK = False
 try :
+    print("inserting alice again")
     table.insert({"name" : "alice", "age" : 22})
 except ValueError as e :
     print(e)
@@ -41,6 +47,7 @@ table.insert({"name" : "rebecca", "age" : 26})
 
 OK = False
 try :
+    print("inserting None for name")
     table.insert({"name" : None, "age" : 16})
 except ValueError as e :
     print(e)

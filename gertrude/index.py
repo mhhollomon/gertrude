@@ -126,7 +126,7 @@ class Index :
                 if key is None :
                     raise ValueError(f"Null key in non-nullable index {self.index_name}")
 
-            records.append(LeafItem(self._gen_value(key), heap_id))
+            records.append(LeafItem(key, heap_id))
 
         root : List[InternalItem] = []
         records.sort(key=lambda x : x.key)
@@ -410,7 +410,7 @@ class Index :
     def column(self) :
         return self._column
 
-    def test_for_insert(self, record : dict[str, Any]) -> Tuple[bool, str] :
+    def test_for_insert(self, record : dict[str, Value]) -> Tuple[bool, str] :
         """Method to check if the record meets the index constraints.
         This must be called before insert() on the record.
         """
@@ -419,20 +419,17 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        raw_key = record[self._column]
-        logger.debug(f"---- Testing key {raw_key} for index {self.index_name}")
+        key = record[self._column]
+        logger.debug(f"---- Testing key {key} for index {self.index_name}")
 
         if not self.nullable :
-            if raw_key is None :
+            if key.is_null :
                 logger.debug(f"--- Null key in non-nullable index {self.index_name}")
                 return False, f"Null key in non-nullable index {self.index_name}"
 
         if not self.unique :
             logger.debug(f"--- Non-unique index {self.index_name}")
             return (True, "")
-
-        # check for duplicate key
-        key = self._gen_value(raw_key)
 
         leaf_id, i = self._find_block2(key)[-1]
         logger.debug(f"--- leaf_id = {leaf_id}, i = {i}")
@@ -442,8 +439,8 @@ class Index :
         logger.debug(f"--- test = {test}")
 
         if test[0] :
-            logger.debug(f"--- Duplicate key '{raw_key}' in unique index {self.index_name}")
-            return False, f"Duplicate key '{raw_key}' in unique index {self.index_name}"
+            logger.debug(f"--- Duplicate key '{key}' in unique index {self.index_name}")
+            return False, f"Duplicate key '{key}' in unique index {self.index_name}"
 
         logger.debug("--- OK")
         return True, ""
@@ -457,7 +454,7 @@ class Index :
         if self.closed :
             raise ValueError(f"Index {self.index_name} is closed.")
 
-        key : Value = self._gen_value(obj[self._column])
+        key : Value = obj[self._column]
 
         logger.debug(f"---- Value = {key} for index {self.index_name}")
 
