@@ -89,3 +89,6 @@ class Query:
 
     def columns(self) -> Set[ColRef] :
         return self._create_runner().columns()
+
+    def optplan(self) -> str :
+        return self._create_runner().optplan()

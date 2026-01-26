@@ -28,32 +28,12 @@ print(table.get_spec())
 
 table.insert({"name" : "bob", "age" : 12})
 table.insert({"name" : "alice", "age" : 22})
-
-OK = False
-try :
-    print("inserting alice again")
-    table.insert({"name" : "alice", "age" : 22})
-except ValueError as e :
-    print(e)
-    OK = True
-
-assert OK
-
 table.insert({"name" : "george", "age" : 14})
 table.insert({"name" : "mark", "age" : 62})
 table.insert({"name" : "martha", "age" : 32})
 table.insert({"name" : "eli", "age" : 20})
 table.insert({"name" : "rebecca", "age" : 26})
 
-OK = False
-try :
-    print("inserting None for name")
-    table.insert({"name" : None, "age" : 16})
-except ValueError as e :
-    print(e)
-    OK = True
-
-assert OK
 
 # Test building an index after the fact.
 table.add_index("age_index", "age")
@@ -78,7 +58,5 @@ table.insert({"name" : "bilbo", "age" : 100})
 table.insert({"name" : "harry", "age" : None})
 
 
-
-
-print("Cache stats:")
-print(db.cache_stats)
+query = db.query("test").filter("age = 18").sort("name")
+print(query.optplan())

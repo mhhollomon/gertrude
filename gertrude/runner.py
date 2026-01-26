@@ -114,3 +114,7 @@ class QueryRunner :
             else :
                 cols = op.columns(cols)
         return cols
+
+
+    def optplan(self) -> str :
+        return 'Just putting in the pipes for now.'
