@@ -2,7 +2,7 @@ from gertrude import Database, cspec
 import logging
 import pytest
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=False)
 def setup_database(request, tmp_path, caplog) :
 
     caplog.set_level(logging.DEBUG, logger="gertrude.index")
@@ -67,3 +67,22 @@ def test_missing_key(setup_database, caplog) :
 
     data = list(table.index_scan("name_index", "carl", op="<="))
     assert data == [{"id" : 2, "name" : "alice"}, {"id" : 1, "name" : "bob"}, {"id" : 1, "name" : "bob"}]
+
+def test_inserting_nulls(tmp_path) :
+    db_path = tmp_path / "db"
+    db = Database.create(db_path)
+    table = db.add_table("test", [
+        cspec("id", "int", pk=True), cspec("name", "str")
+    ])
+
+    table.add_index("name_index", "name")
+
+    table.insert({"id" : 1, "name" : None})
+    table.insert({"id" : 2, "name" : None})
+    table.insert({"id" : 3, "name" : None})
+
+    data = sorted(list(table.index_scan("name_index")), key=lambda x : x["id"])
+    assert data == [{"id" : 1, "name" : None}, {"id" : 2, "name" : None}, {"id" : 3, "name" : None}]
+
+    with pytest.raises(ValueError) :
+        table.insert({"id" : None, "name" : "Bob"})
