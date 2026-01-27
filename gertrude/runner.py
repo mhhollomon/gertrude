@@ -1,6 +1,8 @@
+from io import StringIO
 from typing import Any, Iterable, Set, cast
 
 from .lib.types.colref import ColRef
+from .lib.optplanner import plan as opt_planning
 
 from .lib.plan import OpType, QueryOp, QueryPlan, ScanOp, FilterOp, ReadOp
 from .table import Table
@@ -117,4 +119,8 @@ class QueryRunner :
 
 
     def optplan(self) -> str :
-        return 'Just putting in the pipes for now.'
+        cb = opt_planning(self.db, self.steps)
+
+        s = StringIO()
+        cb.print(s)
+        return s.getvalue()
