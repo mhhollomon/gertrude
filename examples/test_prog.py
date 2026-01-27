@@ -58,5 +58,5 @@ table.insert({"name" : "bilbo", "age" : 100})
 table.insert({"name" : "harry", "age" : None})
 
 
-query = db.query("test").filter("age = 18").sort("name")
+query = db.query("test").filter("age = 18").filter("name in ('sam', 'velma')").sort("name")
 print(query.optplan())

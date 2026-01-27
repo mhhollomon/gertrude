@@ -6,6 +6,15 @@ from typing import Any, Callable, List
 import logging
 logger = logging.getLogger(__name__)
 
+NAME_TO_SYMBOL = {
+    "eq" : "==",
+    "ne" : "!=",
+    "gt" : ">",
+    "ge" : ">=",
+    "lt" : "<",
+    "le" : "<="
+}
+
 
 class ExprNode(ABC):
     @abstractmethod
@@ -43,7 +52,7 @@ class Operation(ExprNode) :
         return self.op(left, right)
 
     def to_python(self) :
-        return f"({self.left.to_python()} {self.op.__name__} {self.right.to_python()})"
+        return f"{self.left.to_python()} {NAME_TO_SYMBOL[self.op.__name__]} {self.right.to_python()}"
 
     def __repr__(self) :
         return f"Operation({self.category}, <{self.op.__name__}>, left={self.left}, right={self.right})"
@@ -180,7 +189,7 @@ class INStmt(ExprNode) :
         return valueFalse()
 
     def to_python(self) :
-        return f"{self.left.to_python()} in something"
+        return f"{self.left.to_python()} in ({', '.join([x.to_python() for x in self.right])})"
 
     @property
     def name(self) :

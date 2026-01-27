@@ -150,7 +150,10 @@ class Value:
         return self.as_bool()
 
     def __repr__(self) :
-        return f"Value(type={self.type}, value={self.value})"
+        value = self.value
+        if self.type == VALUE_STR_TYPE and value is not None :
+            value = repr(value)
+        return f"Value(type={self.type}, value={value})"
 
     def __hash__(self) :
         return hash(self.raw)
